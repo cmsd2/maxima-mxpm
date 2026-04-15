@@ -1,0 +1,2 @@
+# Keep test fixtures with LF line endings on all platforms
+tests/fixtures/** -text

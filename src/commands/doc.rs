@@ -1,8 +1,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use notify_debouncer_mini::new_debouncer;
@@ -38,11 +38,10 @@ fn resolve_doc_source(
                 });
             }
             let contents = fs::read_to_string(manifest_path)?;
-            let manifest = manifest::parse_manifest(&contents).map_err(|e| {
-                MxpmError::MakeinfoFailed {
+            let manifest =
+                manifest::parse_manifest(&contents).map_err(|e| MxpmError::MakeinfoFailed {
                     message: format!("failed to parse manifest.toml: {}", e),
-                }
-            })?;
+                })?;
             let doc_path = manifest.package.doc.ok_or_else(|| MxpmError::MakeinfoFailed {
                 message: "no doc path in manifest.toml; add `doc = \"doc/<name>.md\"` to [package] or pass a file argument".to_string(),
             })?;
@@ -66,9 +65,7 @@ fn resolve_doc_source(
         return Err(MxpmError::MakeinfoFailed {
             message: format!(
                 "expected a .texi, .texinfo, or .md file, got: {}",
-                path.file_name()
-                    .unwrap_or_default()
-                    .to_string_lossy()
+                path.file_name().unwrap_or_default().to_string_lossy()
             ),
         });
     }
@@ -89,9 +86,7 @@ fn resolve_doc_source(
             if let Some(ref root) = manifest_root {
                 root.canonicalize()?
             } else {
-                path.parent()
-                    .unwrap_or(Path::new("."))
-                    .canonicalize()?
+                path.parent().unwrap_or(Path::new(".")).canonicalize()?
             }
         }
     };
@@ -132,10 +127,7 @@ pub fn run_build(
     // If Markdown, convert to .texi first via Pandoc.
     // Place the .texi next to the .md source (not in the output dir).
     let texi_path = if is_markdown {
-        let texi_dir = path
-            .parent()
-            .unwrap_or(Path::new("."))
-            .canonicalize()?;
+        let texi_dir = path.parent().unwrap_or(Path::new(".")).canonicalize()?;
         let texi_dest = texi_dir.join(format!("{}.texi", stem));
         eprintln!("Converting Markdown to Texinfo via Pandoc...");
         invoke_pandoc(file, &texi_dest)?;
@@ -163,10 +155,7 @@ pub fn run_build(
     // 2. Build Lisp index
     let index = info_index::build_index(&info_dest)?;
     let lisp = info_index::render_lisp(&index, None);
-    let info_stem = info_dest
-        .file_stem()
-        .unwrap_or_default()
-        .to_string_lossy();
+    let info_stem = info_dest.file_stem().unwrap_or_default().to_string_lossy();
     let index_path = out_dir.join(format!("{}-index.lisp", info_stem));
     fs::write(&index_path, &lisp)?;
     eprintln!("Wrote {}", index_path.display());
@@ -195,10 +184,7 @@ pub fn run_build(
     if mdbook {
         if is_markdown {
             // When manifest-driven, put book next to the source file (doc/), not package root
-            let mdbook_dir = path
-                .parent()
-                .unwrap_or(Path::new("."))
-                .canonicalize()?;
+            let mdbook_dir = path.parent().unwrap_or(Path::new(".")).canonicalize()?;
             generate_mdbook(file, stem, &mdbook_dir)?;
         } else {
             // From .texi, generate XML first then convert
@@ -243,10 +229,7 @@ pub fn run_index(
             Some(path) => PathBuf::from(path),
             None => {
                 // Default: <basename>-index.lisp next to the .info file
-                let stem = info_path
-                    .file_stem()
-                    .unwrap_or_default()
-                    .to_string_lossy();
+                let stem = info_path.file_stem().unwrap_or_default().to_string_lossy();
                 let parent = info_path.parent().unwrap_or(Path::new("."));
                 parent.join(format!("{}-index.lisp", stem))
             }
@@ -408,10 +391,7 @@ pub fn run_serve(
 /// Watch a file for changes and call `on_change` for each detected modification.
 ///
 /// Blocks until Ctrl-C is pressed.
-fn watch_and_rebuild(
-    watch_path: &Path,
-    on_change: impl Fn(),
-) -> Result<(), MxpmError> {
+fn watch_and_rebuild(watch_path: &Path, on_change: impl Fn()) -> Result<(), MxpmError> {
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
     ctrlc::set_handler(move || {
@@ -422,11 +402,10 @@ fn watch_and_rebuild(
     })?;
 
     let (tx, rx) = std::sync::mpsc::channel();
-    let mut debouncer = new_debouncer(Duration::from_millis(300), tx).map_err(|e| {
-        MxpmError::MakeinfoFailed {
+    let mut debouncer =
+        new_debouncer(Duration::from_millis(300), tx).map_err(|e| MxpmError::MakeinfoFailed {
             message: format!("failed to create file watcher: {}", e),
-        }
-    })?;
+        })?;
 
     debouncer
         .watcher()
@@ -507,11 +486,9 @@ fn invoke_makeinfo(texi_path: &str) -> Result<PathBuf, MxpmError> {
             message: format!("cannot resolve directory: {}", e),
         })?;
 
-    let filename = texi
-        .file_name()
-        .ok_or_else(|| MxpmError::MakeinfoFailed {
-            message: "invalid texi path".to_string(),
-        })?;
+    let filename = texi.file_name().ok_or_else(|| MxpmError::MakeinfoFailed {
+        message: "invalid texi path".to_string(),
+    })?;
 
     let result = Command::new("makeinfo")
         .arg("--force")
@@ -554,13 +531,9 @@ fn invoke_makeinfo_xml(texi_path: &str, output_dir: &Path) -> Result<PathBuf, Mx
     let stem = read_setfilename(texi)
         .map(|name| {
             // Strip .info suffix if present
-            name.strip_suffix(".info")
-                .unwrap_or(&name)
-                .to_string()
+            name.strip_suffix(".info").unwrap_or(&name).to_string()
         })
-        .unwrap_or_else(|| {
-            texi.file_stem().unwrap().to_string_lossy().to_string()
-        });
+        .unwrap_or_else(|| texi.file_stem().unwrap().to_string_lossy().to_string());
     let xml_filename = format!("{}.xml", stem);
     let xml_path = output_dir.join(&xml_filename);
 
@@ -678,7 +651,11 @@ fn postprocess_texi(texi_path: &Path, stem: &str) -> Result<(), MxpmError> {
                 })
                 .filter(|a| !a.is_empty())
                 .collect();
-            result_lines.push(format!("@deffn {{Function}} {} ({})", name, args.join(", ")));
+            result_lines.push(format!(
+                "@deffn {{Function}} {} ({})",
+                name,
+                args.join(", ")
+            ));
             in_deffn = true;
         } else if let Some(caps) = var_re.captures(line) {
             if in_deffn {
@@ -702,7 +679,14 @@ fn postprocess_texi(texi_path: &Path, stem: &str) -> Result<(), MxpmError> {
     // Second pass: close @defvr blocks and remove markers.
     // A @defvr block ends when we see: @deffn, @defvr, @section, @subsection, @node, @bye, @chapter, @printindex
     let end_triggers = [
-        "@deffn", "@defvr", "@section", "@subsection", "@node", "@bye", "@chapter", "@appendix",
+        "@deffn",
+        "@defvr",
+        "@section",
+        "@subsection",
+        "@node",
+        "@bye",
+        "@chapter",
+        "@appendix",
         "@printindex",
     ];
     let mut final_lines: Vec<String> = Vec::new();
@@ -778,9 +762,7 @@ fn regenerate_mdbook_src(md_path: &str, stem: &str, out_dir: &Path) -> Result<Pa
     let md_content = fs::read_to_string(md_path)?;
 
     // Generate book.toml
-    let book_toml = format!(
-        "[book]\ntitle = \"{stem}\"\nlanguage = \"en\"\n\n[output.html]\n"
-    );
+    let book_toml = format!("[book]\ntitle = \"{stem}\"\nlanguage = \"en\"\n\n[output.html]\n");
     fs::write(book_dir.join("book.toml"), book_toml)?;
 
     // Split by ## headings into separate pages.
@@ -877,9 +859,7 @@ fn render_mdbook_content(content: &str) -> String {
 
 /// Run `mdbook build` in the book directory, if mdbook is installed.
 fn invoke_mdbook_build(book_dir: &Path) -> Result<(), MxpmError> {
-    let which = Command::new("which")
-        .arg("mdbook")
-        .output();
+    let which = Command::new("which").arg("mdbook").output();
 
     match which {
         Ok(output) if output.status.success() => {}

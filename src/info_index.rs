@@ -64,11 +64,12 @@ const UNIT_SEPARATOR: u8 = 0x1F;
 
 /// Parse a `.info` file (and its split parts) into an [`InfoIndex`].
 pub fn build_index(main_info_path: &Path) -> Result<InfoIndex, MxpmError> {
-    let main_info_path = main_info_path.canonicalize().map_err(|_| {
-        MxpmError::InfoFileNotFound {
-            path: main_info_path.display().to_string(),
-        }
-    })?;
+    let main_info_path =
+        main_info_path
+            .canonicalize()
+            .map_err(|_| MxpmError::InfoFileNotFound {
+                path: main_info_path.display().to_string(),
+            })?;
     let dir = main_info_path.parent().unwrap_or(Path::new("."));
     let main_filename = main_info_path
         .file_name()
@@ -87,7 +88,12 @@ pub fn build_index(main_info_path: &Path) -> Result<InfoIndex, MxpmError> {
     let mut info_filenames: Vec<String> = vec![main_filename.clone()];
 
     // Scan main file for nodes
-    scan_nodes(&main_data, &main_filename, &mut node_offsets, &mut last_node_name);
+    scan_nodes(
+        &main_data,
+        &main_filename,
+        &mut node_offsets,
+        &mut last_node_name,
+    );
 
     // Find split files from indirect table
     let split_files = find_split_files(&main_data, &main_filename);
@@ -122,12 +128,8 @@ pub fn build_index(main_info_path: &Path) -> Result<InfoIndex, MxpmError> {
                 let file_path = dir.join(&node_loc.filename);
                 let file_data = std::fs::read(&file_path)?;
 
-                let byte_offset = seek_lines(
-                    &file_data,
-                    node_loc.byte_offset,
-                    tref.line_offset,
-                    version,
-                );
+                let byte_offset =
+                    seek_lines(&file_data, node_loc.byte_offset, tref.line_offset, version);
 
                 let char_length = measure_deffn_length(&file_data, byte_offset);
 
@@ -189,9 +191,7 @@ pub fn render_lisp(index: &InfoIndex, install_path: Option<&str>) -> String {
 
     // section-pairs
     out.push_str("(section-pairs '(\n");
-    out.push_str(
-        "; CONTENT: (<NODE NAME> . (<FILENAME> <BYTE OFFSET> <LENGTH IN CHARACTERS>))\n",
-    );
+    out.push_str("; CONTENT: (<NODE NAME> . (<FILENAME> <BYTE OFFSET> <LENGTH IN CHARACTERS>))\n");
 
     let mut sorted_sections: Vec<&SectionEntry> = index.section_entries.iter().collect();
     sorted_sections.sort_by(|a, b| a.title.cmp(&b.title));
@@ -319,10 +319,7 @@ fn parse_index_menu(data: &[u8], index_node_name: &str) -> BTreeMap<String, Topi
     let mut topics = BTreeMap::new();
 
     // Find where the index node starts using "Node: <name>" in a File: header.
-    let node_pattern = format!(
-        r"(?mi)^File:.*?Node:\s*{}",
-        regex::escape(index_node_name)
-    );
+    let node_pattern = format!(r"(?mi)^File:.*?Node:\s*{}", regex::escape(index_node_name));
     let node_re = Regex::new(&node_pattern).unwrap();
 
     let index_start = match node_re.find(&text) {

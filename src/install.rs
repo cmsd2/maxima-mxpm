@@ -124,9 +124,7 @@ pub fn install_local_package(
     editable: bool,
     config: &Config,
 ) -> Result<InstallMetadata, MxpmError> {
-    let abs_source = source_path
-        .canonicalize()
-        .map_err(MxpmError::Io)?;
+    let abs_source = source_path.canonicalize().map_err(MxpmError::Io)?;
 
     // Read manifest to get version
     let manifest_path = abs_source.join("manifest.toml");
@@ -164,7 +162,11 @@ pub fn install_local_package(
         #[cfg(windows)]
         std::os::windows::fs::symlink_dir(&abs_source, &package_dir).map_err(MxpmError::Io)?;
 
-        eprintln!("Linked {} -> {}", package_dir.display(), abs_source.display());
+        eprintln!(
+            "Linked {} -> {}",
+            package_dir.display(),
+            abs_source.display()
+        );
     } else {
         // Copy
         eprintln!("Copying to {}...", package_dir.display());
@@ -238,7 +240,8 @@ pub fn remove_package(name: &str, config: &Config) -> Result<(), MxpmError> {
     }
 
     // Check if this is an editable install (symlink)
-    let is_symlink = package_dir.symlink_metadata()
+    let is_symlink = package_dir
+        .symlink_metadata()
         .map(|m| m.file_type().is_symlink())
         .unwrap_or(false);
 

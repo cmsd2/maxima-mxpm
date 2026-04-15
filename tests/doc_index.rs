@@ -16,7 +16,9 @@ fn fixtures_dir() -> &'static Path {
 #[test]
 fn doc_index_matches_expected_output() {
     let info_path = fixtures_dir().join("testpkg.info");
-    let expected = fs::read_to_string(fixtures_dir().join("testpkg-index.lisp")).unwrap();
+    let expected = fs::read_to_string(fixtures_dir().join("testpkg-index.lisp"))
+        .unwrap()
+        .replace("\r\n", "\n");
 
     let output = mxpm()
         .args(["doc", "index", info_path.to_str().unwrap(), "-o", "-"])
@@ -130,7 +132,10 @@ fn doc_index_default_output_path() {
 
     // Default output: <stem>-index.lisp next to the .info file
     let output_path = dir.path().join("testpkg-index.lisp");
-    assert!(output_path.exists(), "default output file should be created");
+    assert!(
+        output_path.exists(),
+        "default output file should be created"
+    );
     let content = fs::read_to_string(&output_path).unwrap();
     assert!(content.contains("(in-package :cl-info)"));
 }
@@ -180,7 +185,9 @@ fn doc_index_from_texi() {
     let dest = dir.path().join("testpkg.texi");
     fs::copy(&source, &dest).unwrap();
 
-    let expected = fs::read_to_string(fixtures_dir().join("testpkg-index.lisp")).unwrap();
+    let expected = fs::read_to_string(fixtures_dir().join("testpkg-index.lisp"))
+        .unwrap()
+        .replace("\r\n", "\n");
 
     mxpm()
         .args(["doc", "index", dest.to_str().unwrap()])
@@ -427,7 +434,11 @@ doc = "doc/test-pkg.md"
     // Create doc source
     let doc_dir = dir.path().join("doc");
     fs::create_dir(&doc_dir).unwrap();
-    fs::copy(fixtures_dir().join("testpkg.md"), doc_dir.join("test-pkg.md")).unwrap();
+    fs::copy(
+        fixtures_dir().join("testpkg.md"),
+        doc_dir.join("test-pkg.md"),
+    )
+    .unwrap();
 
     mxpm()
         .args(["doc", "build"])

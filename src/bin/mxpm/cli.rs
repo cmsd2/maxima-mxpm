@@ -187,7 +187,15 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
             path,
             editable,
         } => {
-            commands::install::run(package.as_deref(), reinstall, path.as_deref(), editable, format, &config).await?;
+            commands::install::run(
+                package.as_deref(),
+                reinstall,
+                path.as_deref(),
+                editable,
+                format,
+                &config,
+            )
+            .await?;
         }
         Command::Init {
             name,
