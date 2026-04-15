@@ -30,7 +30,7 @@ pub async fn find_outdated(config: &Config) -> Result<Vec<OutdatedPackage>, Mxpm
 
     for pkg in &installed {
         if let Ok((entry, reg_name)) = registry::resolve_package(&pkg.name, &registries)
-            && pkg.source != entry.source
+            && source_changed(&pkg.source, &entry.source)
         {
             outdated.push(OutdatedPackage {
                 name: pkg.name.clone(),
@@ -70,6 +70,24 @@ pub async fn run(format: OutputFormat, config: &Config) -> Result<(), MxpmError>
     }
 
     Ok(())
+}
+
+/// Check if the registry source indicates a newer version than what's installed.
+/// Compares only the identifying fields (ref for git, url for tarball),
+/// ignoring computed metadata like hash that may differ.
+fn source_changed(installed: &Source, registry: &Source) -> bool {
+    match (installed, registry) {
+        (
+            Source::Git { git_ref: installed_ref, .. },
+            Source::Git { git_ref: registry_ref, .. },
+        ) => installed_ref != registry_ref,
+        (
+            Source::Tarball { url: installed_url, .. },
+            Source::Tarball { url: registry_url, .. },
+        ) => installed_url != registry_url,
+        // Source type changed entirely
+        _ => true,
+    }
 }
 
 fn source_ref(source: &Source) -> Option<String> {

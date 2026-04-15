@@ -88,3 +88,79 @@ impl Config {
         std::time::Duration::from_secs(self.cache_ttl.unwrap_or(3600))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_config_has_community_registry() {
+        let config = Config::default();
+        let registries = config.effective_registries();
+        assert_eq!(registries.len(), 1);
+        assert_eq!(registries[0].name, "community");
+        assert!(registries[0].url.contains("maxima-package-index"));
+    }
+
+    #[test]
+    fn custom_registry_preserves_community() {
+        let config = Config {
+            registries: Some(vec![RegistryConfig {
+                name: "custom".to_string(),
+                url: "https://example.com/index.json".to_string(),
+            }]),
+            ..Config::default()
+        };
+        let registries = config.effective_registries();
+        assert_eq!(registries.len(), 2);
+        assert_eq!(registries[0].name, "custom");
+        assert_eq!(registries[1].name, "community");
+    }
+
+    #[test]
+    fn explicit_community_not_duplicated() {
+        let config = Config {
+            registries: Some(vec![RegistryConfig {
+                name: "community".to_string(),
+                url: "https://custom.example.com/index.json".to_string(),
+            }]),
+            ..Config::default()
+        };
+        let registries = config.effective_registries();
+        assert_eq!(registries.len(), 1);
+        assert_eq!(registries[0].url, "https://custom.example.com/index.json");
+    }
+
+    #[test]
+    fn default_cache_ttl() {
+        let config = Config::default();
+        assert_eq!(config.cache_ttl_duration().as_secs(), 3600);
+    }
+
+    #[test]
+    fn custom_cache_ttl() {
+        let config = Config {
+            cache_ttl: Some(300),
+            ..Config::default()
+        };
+        assert_eq!(config.cache_ttl_duration().as_secs(), 300);
+    }
+
+    #[test]
+    fn parse_config_toml() {
+        let toml = r#"
+maxima_userdir = "/custom/maxima"
+cache_ttl = 600
+
+[[registries]]
+name = "private"
+url = "https://private.example.com/index.json"
+"#;
+        let config: Config = toml::from_str(toml).unwrap();
+        assert_eq!(config.maxima_userdir.unwrap(), PathBuf::from("/custom/maxima"));
+        assert_eq!(config.cache_ttl.unwrap(), 600);
+        let registries = config.registries.unwrap();
+        assert_eq!(registries.len(), 1);
+        assert_eq!(registries[0].name, "private");
+    }
+}

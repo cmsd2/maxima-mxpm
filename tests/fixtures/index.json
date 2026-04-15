@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "packages": {
+    "test-package": {
+      "description": "A test package for unit testing",
+      "repository": "https://example.com/test-package",
+      "keywords": ["test", "example"],
+      "license": "MIT",
+      "authors": ["Test Author"],
+      "source": {
+        "type": "git",
+        "url": "https://example.com/test-package.git",
+        "ref": "abc123def456789012345678901234567890abcd"
+      }
+    },
+    "another-package": {
+      "description": "Another package for search testing",
+      "repository": "https://example.com/another",
+      "keywords": ["math", "algebra"],
+      "source": {
+        "type": "tarball",
+        "url": "https://example.com/another-1.0.tar.gz",
+        "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "hash_algorithm": "sha256"
+      }
+    },
+    "monorepo-sub": {
+      "description": "A subdir package from a monorepo",
+      "repository": "https://example.com/monorepo",
+      "source": {
+        "type": "git",
+        "url": "https://example.com/monorepo.git",
+        "ref": "1234567890abcdef1234567890abcdef12345678",
+        "subdir": "packages/sub"
+      }
+    }
+  }
+}

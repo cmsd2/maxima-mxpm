@@ -2,8 +2,9 @@ use std::path::Path;
 
 use crate::config::Config;
 use crate::errors::MxpmError;
-use crate::index::PackageEntry;
+use crate::index::{PackageEntry, Source};
 use crate::manifest;
+use crate::source::DownloadResult;
 use crate::types::InstallMetadata;
 
 /// Install a package to the Maxima user directory.
@@ -60,17 +61,16 @@ pub async fn install_package(
     // Clean up staging dir if empty
     let _ = std::fs::remove_dir(&staging_dir);
 
+    // Build a resolved source that reflects what was actually installed
+    let resolved_source = resolve_source(&entry.source, &download_result);
+
     // Write install metadata
     let metadata = InstallMetadata {
         name: name.to_string(),
         version,
         installed_at: chrono::Utc::now().to_rfc3339(),
-        source: entry.source.clone(),
+        source: resolved_source,
         registry: registry_name.to_string(),
-        url: Some(download_result.url),
-        commit: download_result.commit,
-        hash: download_result.hash,
-        hash_algorithm: download_result.hash_algorithm,
     };
     let metadata_json = serde_json::to_string_pretty(&metadata)
         .map_err(|e| MxpmError::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
@@ -85,6 +85,26 @@ fn read_version_from_staging(staging_dir: &Path) -> Option<String> {
     let contents = std::fs::read_to_string(manifest_path).ok()?;
     let m = manifest::parse_manifest(&contents).ok()?;
     Some(m.package.version)
+}
+
+/// Build a resolved Source from the index entry and actual download result.
+/// For git: replaces ref with the resolved commit hash.
+/// For tarball: fills in the computed hash.
+fn resolve_source(original: &Source, result: &DownloadResult) -> Source {
+    match original {
+        Source::Git {
+            url, subdir, ..
+        } => Source::Git {
+            url: url.clone(),
+            git_ref: result.commit.clone().unwrap_or_default(),
+            subdir: subdir.clone(),
+        },
+        Source::Tarball { url, .. } => Source::Tarball {
+            url: url.clone(),
+            hash: result.hash.clone(),
+            hash_algorithm: result.hash_algorithm.clone(),
+        },
+    }
 }
 
 /// Read install metadata from an installed package.
@@ -171,7 +191,8 @@ pub fn search_packages<'a>(
     results
 }
 
-fn score_match(name: &str, entry: &PackageEntry, query: &str) -> u32 {
+/// Visible for testing.
+pub fn score_match(name: &str, entry: &PackageEntry, query: &str) -> u32 {
     let name_lower = name.to_lowercase();
     let desc_lower = entry.description.to_lowercase();
 
@@ -201,4 +222,195 @@ fn score_match(name: &str, entry: &PackageEntry, query: &str) -> u32 {
     }
 
     score
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::index::PackageEntry;
+
+    fn make_entry(desc: &str, keywords: Option<Vec<&str>>) -> PackageEntry {
+        PackageEntry {
+            description: desc.to_string(),
+            repository: "https://example.com".to_string(),
+            source: Source::Git {
+                url: "https://example.com/repo.git".into(),
+                git_ref: "abc123".into(),
+                subdir: None,
+            },
+            homepage: None,
+            keywords: keywords.map(|kws| kws.into_iter().map(String::from).collect()),
+            license: None,
+            authors: None,
+        }
+    }
+
+    #[test]
+    fn exact_name_match_scores_highest() {
+        let entry = make_entry("Some package", None);
+        let score = score_match("diophantine", &entry, "diophantine");
+        assert_eq!(score, 100);
+    }
+
+    #[test]
+    fn partial_name_match() {
+        let entry = make_entry("Some package", None);
+        let score = score_match("diophantine", &entry, "diophan");
+        assert_eq!(score, 50);
+    }
+
+    #[test]
+    fn keyword_exact_match() {
+        let entry = make_entry("Some package", Some(vec!["algebra", "math"]));
+        let score = score_match("other-name", &entry, "algebra");
+        assert_eq!(score, 30);
+    }
+
+    #[test]
+    fn description_match() {
+        let entry = make_entry("Solver for equations", None);
+        let score = score_match("other-name", &entry, "equations");
+        assert_eq!(score, 10);
+    }
+
+    #[test]
+    fn no_match_scores_zero() {
+        let entry = make_entry("Some package", Some(vec!["math"]));
+        let score = score_match("other-name", &entry, "xyz");
+        assert_eq!(score, 0);
+    }
+
+    #[test]
+    fn case_insensitive_matching() {
+        let entry = make_entry("Diophantine Solver", Some(vec!["Number-Theory"]));
+        let score = score_match("Diophantine", &entry, "diophantine");
+        assert!(score >= 100); // exact name + description
+    }
+
+    #[test]
+    fn multiple_match_types_combine() {
+        // Name contains query + description contains query
+        let entry = make_entry("A test package", Some(vec!["test"]));
+        let score = score_match("test-pkg", &entry, "test");
+        // partial name (50) + exact keyword (30) + description (10)
+        assert_eq!(score, 90);
+    }
+
+    #[test]
+    fn resolve_source_git_uses_commit() {
+        let original = Source::Git {
+            url: "https://example.com/repo.git".into(),
+            git_ref: "main".into(),
+            subdir: Some("sub".into()),
+        };
+        let result = DownloadResult {
+            url: "https://example.com/repo.git".into(),
+            commit: Some("abc123def456".into()),
+            hash: None,
+            hash_algorithm: None,
+        };
+        let resolved = resolve_source(&original, &result);
+        match resolved {
+            Source::Git { git_ref, subdir, .. } => {
+                assert_eq!(git_ref, "abc123def456");
+                assert_eq!(subdir.unwrap(), "sub");
+            }
+            _ => panic!("expected git source"),
+        }
+    }
+
+    #[test]
+    fn resolve_source_tarball_adds_hash() {
+        let original = Source::Tarball {
+            url: "https://example.com/pkg.tar.gz".into(),
+            hash: None,
+            hash_algorithm: None,
+        };
+        let result = DownloadResult {
+            url: "https://example.com/pkg.tar.gz".into(),
+            commit: None,
+            hash: Some("deadbeef".into()),
+            hash_algorithm: Some("sha256".into()),
+        };
+        let resolved = resolve_source(&original, &result);
+        match resolved {
+            Source::Tarball { hash, hash_algorithm, .. } => {
+                assert_eq!(hash.unwrap(), "deadbeef");
+                assert_eq!(hash_algorithm.unwrap(), "sha256");
+            }
+            _ => panic!("expected tarball source"),
+        }
+    }
+
+    #[test]
+    fn list_installed_empty_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = Config {
+            maxima_userdir: Some(dir.path().to_path_buf()),
+            ..Config::default()
+        };
+        let packages = list_installed(&config).unwrap();
+        assert!(packages.is_empty());
+    }
+
+    #[test]
+    fn list_installed_finds_packages() {
+        let dir = tempfile::tempdir().unwrap();
+        let pkg_dir = dir.path().join("test-pkg");
+        std::fs::create_dir(&pkg_dir).unwrap();
+        let metadata = InstallMetadata {
+            name: "test-pkg".into(),
+            version: Some("1.0.0".into()),
+            installed_at: "2025-01-01T00:00:00Z".into(),
+            source: Source::Git {
+                url: "https://example.com".into(),
+                git_ref: "abc123".into(),
+                subdir: None,
+            },
+            registry: "community".into(),
+        };
+        let json = serde_json::to_string(&metadata).unwrap();
+        std::fs::write(pkg_dir.join(".mxpm.json"), json).unwrap();
+
+        let config = Config {
+            maxima_userdir: Some(dir.path().to_path_buf()),
+            ..Config::default()
+        };
+        let packages = list_installed(&config).unwrap();
+        assert_eq!(packages.len(), 1);
+        assert_eq!(packages[0].name, "test-pkg");
+    }
+
+    #[test]
+    fn is_installed_detects_package() {
+        let dir = tempfile::tempdir().unwrap();
+        let pkg_dir = dir.path().join("foo");
+        std::fs::create_dir(&pkg_dir).unwrap();
+        std::fs::write(pkg_dir.join(".mxpm.json"), "{}").unwrap();
+
+        let config = Config {
+            maxima_userdir: Some(dir.path().to_path_buf()),
+            ..Config::default()
+        };
+        // .mxpm.json exists but is invalid JSON for InstallMetadata,
+        // but is_installed only checks file existence
+        assert!(is_installed("foo", &config).unwrap());
+        assert!(!is_installed("bar", &config).unwrap());
+    }
+
+    #[test]
+    fn remove_package_deletes_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let pkg_dir = dir.path().join("foo");
+        std::fs::create_dir(&pkg_dir).unwrap();
+        std::fs::write(pkg_dir.join(".mxpm.json"), "{}").unwrap();
+        std::fs::write(pkg_dir.join("foo.mac"), "/* code */").unwrap();
+
+        let config = Config {
+            maxima_userdir: Some(dir.path().to_path_buf()),
+            ..Config::default()
+        };
+        remove_package("foo", &config).unwrap();
+        assert!(!pkg_dir.exists());
+    }
 }

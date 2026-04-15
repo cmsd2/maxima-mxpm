@@ -1,5 +1,6 @@
 use crate::config::Config;
 use crate::errors::MxpmError;
+use crate::index::Source;
 use crate::output::{self, OutputFormat};
 use crate::paths;
 use crate::registry;
@@ -43,12 +44,17 @@ pub async fn run(
     match format {
         OutputFormat::Json => output::print_json(&metadata)?,
         OutputFormat::Human => {
-            if let Some(ref commit) = metadata.commit {
-                eprintln!("Commit:  {}", &commit[..12.min(commit.len())]);
-            }
-            if let Some(ref hash) = metadata.hash {
-                let algo = metadata.hash_algorithm.as_deref().unwrap_or("sha256");
-                eprintln!("Hash:    {algo}:{}", &hash[..16.min(hash.len())]);
+            match &metadata.source {
+                Source::Git { git_ref, .. } => {
+                    let short = if git_ref.len() >= 12 { &git_ref[..12] } else { git_ref };
+                    eprintln!("Commit:  {short}");
+                }
+                Source::Tarball { hash, hash_algorithm, .. } => {
+                    if let Some(h) = hash {
+                        let algo = hash_algorithm.as_deref().unwrap_or("sha256");
+                        eprintln!("Hash:    {algo}:{}", &h[..16.min(h.len())]);
+                    }
+                }
             }
             if let Some(ref version) = metadata.version {
                 eprintln!("Version: {version}");

@@ -8,18 +8,9 @@ pub struct InstallMetadata {
     pub name: String,
     pub version: Option<String>,
     pub installed_at: String,
+    /// The source used at install time, with resolved values:
+    /// - git: `ref` is the actual commit hash that was checked out
+    /// - tarball: `hash`/`hash_algorithm` are filled in from the download
     pub source: Source,
     pub registry: String,
-    /// The URL that was fetched (git clone URL or tarball URL).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub url: Option<String>,
-    /// The resolved git commit hash at install time (if source was git).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub commit: Option<String>,
-    /// Hex-encoded hash of the downloaded tarball (if source was tarball).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub hash: Option<String>,
-    /// Hash algorithm used (e.g. "sha256").
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub hash_algorithm: Option<String>,
 }
