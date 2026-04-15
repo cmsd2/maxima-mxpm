@@ -95,8 +95,8 @@ cd my-package
 git init
 ```
 
-This creates a `manifest.toml`, entry point `.mac` file, test file, README, and
-`.gitignore`. Install it locally for development:
+This creates a `manifest.toml`, entry point `.mac` file, test file, doc source,
+CI workflows, README, and `.gitignore`. Install it locally for development:
 
 ```bash
 mxpm install --path . --editable   # symlink — edits are live
@@ -105,6 +105,47 @@ mxpm install --path .              # copy — snapshot install
 
 Or start from the [maxima-package-template](https://github.com/cmsd2/maxima-package-template)
 on GitHub.
+
+### manifest.toml
+
+Every package has a `manifest.toml` at its root:
+
+```toml
+[package]
+name = "my-package"          # Required. 2-64 chars, lowercase + hyphens
+version = "0.1.0"            # Required. Semver
+description = "..."          # Required
+license = "MIT"              # Required. SPDX identifier
+entry = "my-package.mac"     # Required. Main Maxima file
+doc = "doc/my-package.md"    # Doc source (.md or .texi)
+
+# Optional fields
+homepage = "https://..."
+repository = "https://..."
+keywords = ["math", "algebra"]
+maxima = ">= 5.47"
+
+[package.authors]
+names = ["Author Name"]
+
+[test]
+files = ["rtest_my-package.mac"]
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | yes | Package name (lowercase letters, digits, hyphens; cannot start with `maxima-`) |
+| `version` | yes | Package version |
+| `description` | yes | Short description |
+| `license` | yes | SPDX license identifier |
+| `entry` | yes | Main `.mac` file loaded by `load("name")` |
+| `doc` | no | Path to documentation source (`.md` or `.texi`), relative to package root |
+| `homepage` | no | Project homepage URL |
+| `repository` | no | Source code repository URL |
+| `keywords` | no | List of keywords for search |
+| `maxima` | no | Maxima version requirement |
+| `authors.names` | no | List of author names |
+| `test.files` | no | List of test files for `batch()` |
 
 ## Documentation
 

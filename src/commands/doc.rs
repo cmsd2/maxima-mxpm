@@ -20,16 +20,43 @@ struct DocSource {
     stem: String,
 }
 
+/// Walk up from `start_dir` looking for `manifest.toml`.
+/// Returns the directory containing it, or `None` if not found.
+fn find_manifest_dir(start_dir: &Path) -> Option<PathBuf> {
+    let mut dir = start_dir.to_path_buf();
+    loop {
+        if dir.join("manifest.toml").exists() {
+            return Some(dir);
+        }
+        if !dir.pop() {
+            return None;
+        }
+    }
+}
+
 /// Resolve the doc source file and output directory.
 ///
 /// If `file` is `None`, reads from `manifest.toml`. If `output_dir` is `None`,
 /// defaults to the package root (manifest-driven) or the source file's directory.
+///
+/// When `file` is provided, walks up parent directories looking for `manifest.toml`
+/// to determine the package root for artifact placement.
 fn resolve_doc_source(
     file: Option<&str>,
     output_dir: Option<&str>,
 ) -> Result<DocSource, MxpmError> {
     let (resolved_file, manifest_root) = match file {
-        Some(f) => (f.to_string(), None),
+        Some(f) => {
+            let manifest_root = Path::new(f).parent().and_then(|p| {
+                let abs = if p.as_os_str().is_empty() {
+                    Path::new(".").canonicalize().ok()?
+                } else {
+                    p.canonicalize().ok()?
+                };
+                find_manifest_dir(&abs)
+            });
+            (f.to_string(), manifest_root)
+        }
         None => {
             let manifest_path = Path::new("manifest.toml");
             if !manifest_path.exists() {

@@ -466,6 +466,56 @@ doc = "doc/test-pkg.md"
     assert!(index.contains("(in-package :cl-info)"));
 }
 
+#[test]
+#[ignore]
+fn doc_build_explicit_file_finds_manifest() {
+    let dir = tempfile::tempdir().unwrap();
+
+    // Create manifest at package root
+    fs::write(
+        dir.path().join("manifest.toml"),
+        r#"[package]
+name = "test-pkg"
+version = "0.1.0"
+description = "A test"
+license = "MIT"
+entry = "test-pkg.mac"
+doc = "doc/test-pkg.md"
+"#,
+    )
+    .unwrap();
+
+    // Create doc source in subdirectory
+    let doc_dir = dir.path().join("doc");
+    fs::create_dir(&doc_dir).unwrap();
+    fs::copy(
+        fixtures_dir().join("testpkg.md"),
+        doc_dir.join("test-pkg.md"),
+    )
+    .unwrap();
+
+    // Run with explicit file path (not manifest-driven)
+    mxpm()
+        .args([
+            "doc",
+            "build",
+            doc_dir.join("test-pkg.md").to_str().unwrap(),
+        ])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    // .info and -index.lisp should be in the package root (where manifest.toml is)
+    assert!(
+        dir.path().join("test-pkg.info").exists(),
+        ".info should be in package root, not doc/"
+    );
+    assert!(
+        dir.path().join("test-pkg-index.lisp").exists(),
+        "-index.lisp should be in package root, not doc/"
+    );
+}
+
 // ── mxpm doc watch / serve ──────────────────────────────────────────
 
 #[test]
