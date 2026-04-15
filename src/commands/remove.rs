@@ -12,12 +12,7 @@ struct RemoveResult {
     removed: bool,
 }
 
-pub fn run(
-    name: &str,
-    yes: bool,
-    format: OutputFormat,
-    config: &Config,
-) -> Result<(), MxpmError> {
+pub fn run(name: &str, yes: bool, format: OutputFormat, config: &Config) -> Result<(), MxpmError> {
     let package_dir = paths::package_dir(config, name)?;
 
     if !install::is_installed(name, config)? {
@@ -28,10 +23,7 @@ pub fn run(
 
     // In JSON mode, skip interactive confirmation (treat as --yes)
     if !yes && format == OutputFormat::Human {
-        eprint!(
-            "Remove {name} from {}? [y/N] ",
-            package_dir.display()
-        );
+        eprint!("Remove {name} from {}? [y/N] ", package_dir.display());
         let mut input = String::new();
         std::io::stdin()
             .read_line(&mut input)

@@ -94,8 +94,7 @@ pub async fn run(
         // Install new version
         let entry = entry.clone();
         let registry_name = registry_name.to_string();
-        let metadata =
-            install::install_package(&pkg.name, &entry, &registry_name, config).await?;
+        let metadata = install::install_package(&pkg.name, &entry, &registry_name, config).await?;
 
         upgraded.push(UpgradedPackage {
             name: pkg.name.clone(),

@@ -66,7 +66,11 @@ mod tests {
         let json = r#"{"type":"git","url":"https://example.com/repo.git","ref":"abc123"}"#;
         let source: Source = serde_json::from_str(json).unwrap();
         match source {
-            Source::Git { url, git_ref, subdir } => {
+            Source::Git {
+                url,
+                git_ref,
+                subdir,
+            } => {
                 assert_eq!(url, "https://example.com/repo.git");
                 assert_eq!(git_ref, "abc123");
                 assert!(subdir.is_none());
@@ -87,7 +91,11 @@ mod tests {
         let json = r#"{"type":"tarball","url":"https://example.com/pkg.tar.gz"}"#;
         let source: Source = serde_json::from_str(json).unwrap();
         match source {
-            Source::Tarball { url, hash, hash_algorithm } => {
+            Source::Tarball {
+                url,
+                hash,
+                hash_algorithm,
+            } => {
                 assert_eq!(url, "https://example.com/pkg.tar.gz");
                 assert!(hash.is_none());
                 assert!(hash_algorithm.is_none());
@@ -101,7 +109,11 @@ mod tests {
         let json = r#"{"type":"tarball","url":"https://example.com/pkg.tar.gz","hash":"abcdef","hash_algorithm":"sha256"}"#;
         let source: Source = serde_json::from_str(json).unwrap();
         match source {
-            Source::Tarball { hash, hash_algorithm, .. } => {
+            Source::Tarball {
+                hash,
+                hash_algorithm,
+                ..
+            } => {
                 assert_eq!(hash.unwrap(), "abcdef");
                 assert_eq!(hash_algorithm.unwrap(), "sha256");
             }

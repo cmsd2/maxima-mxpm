@@ -39,7 +39,11 @@ pub async fn install_package(
 
     match &entry.source {
         crate::index::Source::Git { url, git_ref, .. } => {
-            let short_ref = if git_ref.len() == 40 { &git_ref[..12] } else { git_ref };
+            let short_ref = if git_ref.len() == 40 {
+                &git_ref[..12]
+            } else {
+                git_ref
+            };
             eprintln!("Cloning {url} ({short_ref})...");
         }
         crate::index::Source::Tarball { url, .. } => {
@@ -73,7 +77,7 @@ pub async fn install_package(
         registry: registry_name.to_string(),
     };
     let metadata_json = serde_json::to_string_pretty(&metadata)
-        .map_err(|e| MxpmError::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
+        .map_err(|e| MxpmError::Io(std::io::Error::other(e)))?;
     std::fs::write(package_dir.join(".mxpm.json"), metadata_json).map_err(MxpmError::Io)?;
 
     Ok(metadata)
@@ -92,9 +96,7 @@ fn read_version_from_staging(staging_dir: &Path) -> Option<String> {
 /// For tarball: fills in the computed hash.
 fn resolve_source(original: &Source, result: &DownloadResult) -> Source {
     match original {
-        Source::Git {
-            url, subdir, ..
-        } => Source::Git {
+        Source::Git { url, subdir, .. } => Source::Git {
             url: url.clone(),
             git_ref: result.commit.clone().unwrap_or_default(),
             subdir: subdir.clone(),
@@ -111,8 +113,8 @@ fn resolve_source(original: &Source, result: &DownloadResult) -> Source {
 pub fn read_install_metadata(package_dir: &Path) -> Result<InstallMetadata, MxpmError> {
     let metadata_path = package_dir.join(".mxpm.json");
     let contents = std::fs::read_to_string(&metadata_path).map_err(MxpmError::Io)?;
-    let metadata: InstallMetadata = serde_json::from_str(&contents)
-        .map_err(|e| MxpmError::Io(std::io::Error::new(std::io::ErrorKind::InvalidData, e)))?;
+    let metadata: InstallMetadata =
+        serde_json::from_str(&contents).map_err(|e| MxpmError::Io(std::io::Error::other(e)))?;
     Ok(metadata)
 }
 
@@ -130,10 +132,10 @@ pub fn list_installed(config: &Config) -> Result<Vec<InstallMetadata>, MxpmError
         let entry = entry.map_err(MxpmError::Io)?;
         if entry.path().is_dir() {
             let metadata_path = entry.path().join(".mxpm.json");
-            if metadata_path.exists() {
-                if let Ok(metadata) = read_install_metadata(&entry.path()) {
-                    packages.push(metadata);
-                }
+            if metadata_path.exists()
+                && let Ok(metadata) = read_install_metadata(&entry.path())
+            {
+                packages.push(metadata);
             }
         }
     }
@@ -311,7 +313,9 @@ mod tests {
         };
         let resolved = resolve_source(&original, &result);
         match resolved {
-            Source::Git { git_ref, subdir, .. } => {
+            Source::Git {
+                git_ref, subdir, ..
+            } => {
                 assert_eq!(git_ref, "abc123def456");
                 assert_eq!(subdir.unwrap(), "sub");
             }
@@ -334,7 +338,11 @@ mod tests {
         };
         let resolved = resolve_source(&original, &result);
         match resolved {
-            Source::Tarball { hash, hash_algorithm, .. } => {
+            Source::Tarball {
+                hash,
+                hash_algorithm,
+                ..
+            } => {
                 assert_eq!(hash.unwrap(), "deadbeef");
                 assert_eq!(hash_algorithm.unwrap(), "sha256");
             }

@@ -26,11 +26,7 @@ struct InstalledInfo {
     installed_at: String,
 }
 
-pub async fn run(
-    name: &str,
-    format: OutputFormat,
-    config: &Config,
-) -> Result<(), MxpmError> {
+pub async fn run(name: &str, format: OutputFormat, config: &Config) -> Result<(), MxpmError> {
     let registries_config = config.effective_registries();
     let cache_dir = paths::cache_dir();
     let ttl = config.cache_ttl_duration();
@@ -41,10 +37,12 @@ pub async fn run(
     let installed = match install::is_installed(name, config) {
         Ok(true) => {
             let pkg_dir = paths::package_dir(config, name)?;
-            install::read_install_metadata(&pkg_dir).ok().map(|m| InstalledInfo {
-                version: m.version,
-                installed_at: m.installed_at,
-            })
+            install::read_install_metadata(&pkg_dir)
+                .ok()
+                .map(|m| InstalledInfo {
+                    version: m.version,
+                    installed_at: m.installed_at,
+                })
         }
         _ => None,
     };

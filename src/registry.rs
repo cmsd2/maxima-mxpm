@@ -26,20 +26,16 @@ pub async fn fetch_index(
     let cache_file = cache_dir.join(format!("index_{}.json", url_hash(url)));
 
     // Check cache freshness
-    if let Ok(metadata) = std::fs::metadata(&cache_file) {
-        if let Ok(modified) = metadata.modified() {
-            if SystemTime::now()
-                .duration_since(modified)
-                .unwrap_or(ttl + std::time::Duration::from_secs(1))
-                < ttl
-            {
-                if let Ok(contents) = std::fs::read_to_string(&cache_file) {
-                    if let Ok(index) = serde_json::from_str::<PackageIndex>(&contents) {
-                        return validate_index_version(index);
-                    }
-                }
-            }
-        }
+    if let Ok(metadata) = std::fs::metadata(&cache_file)
+        && let Ok(modified) = metadata.modified()
+        && SystemTime::now()
+            .duration_since(modified)
+            .unwrap_or(ttl + std::time::Duration::from_secs(1))
+            < ttl
+        && let Ok(contents) = std::fs::read_to_string(&cache_file)
+        && let Ok(index) = serde_json::from_str::<PackageIndex>(&contents)
+    {
+        return validate_index_version(index);
     }
 
     // Fetch fresh copy

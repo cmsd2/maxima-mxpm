@@ -157,7 +157,10 @@ name = "private"
 url = "https://private.example.com/index.json"
 "#;
         let config: Config = toml::from_str(toml).unwrap();
-        assert_eq!(config.maxima_userdir.unwrap(), PathBuf::from("/custom/maxima"));
+        assert_eq!(
+            config.maxima_userdir.unwrap(),
+            PathBuf::from("/custom/maxima")
+        );
         assert_eq!(config.cache_ttl.unwrap(), 600);
         let registries = config.registries.unwrap();
         assert_eq!(registries.len(), 1);

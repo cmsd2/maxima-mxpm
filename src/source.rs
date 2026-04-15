@@ -65,12 +65,10 @@ async fn download_tarball(
         ))));
     }
 
-    let response = reqwest::get(url)
-        .await
-        .map_err(|e| MxpmError::Download {
-            url: url.to_string(),
-            source: e,
-        })?;
+    let response = reqwest::get(url).await.map_err(|e| MxpmError::Download {
+        url: url.to_string(),
+        source: e,
+    })?;
 
     if !response.status().is_success() {
         return Err(MxpmError::DownloadStatus {
@@ -88,14 +86,10 @@ async fn download_tarball(
     // Stream the response body with progress
     let mut bytes = Vec::with_capacity(total_size as usize);
     let mut stream = response;
-    while let Some(chunk) = stream
-        .chunk()
-        .await
-        .map_err(|e| MxpmError::Download {
-            url: url.to_string(),
-            source: e,
-        })?
-    {
+    while let Some(chunk) = stream.chunk().await.map_err(|e| MxpmError::Download {
+        url: url.to_string(),
+        source: e,
+    })? {
         bytes.extend_from_slice(&chunk);
         pb.set_position(bytes.len() as u64);
     }
@@ -105,14 +99,14 @@ async fn download_tarball(
     let hash = hex::encode(Sha256::digest(&bytes));
 
     // Verify against expected hash if provided
-    if let Some(expected) = expected_hash {
-        if hash != expected {
-            return Err(MxpmError::HashMismatch {
-                url: url.to_string(),
-                expected: expected.to_string(),
-                actual: hash,
-            });
-        }
+    if let Some(expected) = expected_hash
+        && hash != expected
+    {
+        return Err(MxpmError::HashMismatch {
+            url: url.to_string(),
+            expected: expected.to_string(),
+            actual: hash,
+        });
     }
 
     // Tarballs from GitHub/GitLab wrap contents in a top-level directory.
@@ -196,10 +190,7 @@ fn clone_git(
     if !source_dir.exists() {
         return Err(MxpmError::GitClone {
             url: url.to_string(),
-            message: format!(
-                "subdir '{}' not found in repository",
-                subdir.unwrap_or("")
-            ),
+            message: format!("subdir '{}' not found in repository", subdir.unwrap_or("")),
         });
     }
 

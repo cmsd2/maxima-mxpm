@@ -78,12 +78,22 @@ pub async fn run(format: OutputFormat, config: &Config) -> Result<(), MxpmError>
 fn source_changed(installed: &Source, registry: &Source) -> bool {
     match (installed, registry) {
         (
-            Source::Git { git_ref: installed_ref, .. },
-            Source::Git { git_ref: registry_ref, .. },
+            Source::Git {
+                git_ref: installed_ref,
+                ..
+            },
+            Source::Git {
+                git_ref: registry_ref,
+                ..
+            },
         ) => installed_ref != registry_ref,
         (
-            Source::Tarball { url: installed_url, .. },
-            Source::Tarball { url: registry_url, .. },
+            Source::Tarball {
+                url: installed_url, ..
+            },
+            Source::Tarball {
+                url: registry_url, ..
+            },
         ) => installed_url != registry_url,
         // Source type changed entirely
         _ => true,
@@ -99,9 +109,7 @@ fn source_ref(source: &Source) -> Option<String> {
 
 fn short_ref(r: Option<&str>) -> String {
     match r {
-        Some(s) if s.len() == 40 && s.chars().all(|c| c.is_ascii_hexdigit()) => {
-            s[..12].to_string()
-        }
+        Some(s) if s.len() == 40 && s.chars().all(|c| c.is_ascii_hexdigit()) => s[..12].to_string(),
         Some(s) => s.to_string(),
         None => "-".to_string(),
     }

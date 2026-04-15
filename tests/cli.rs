@@ -79,16 +79,10 @@ fn remove_not_installed() {
 
 #[test]
 fn unknown_subcommand() {
-    mxpm()
-        .arg("frobnicate")
-        .assert()
-        .failure();
+    mxpm().arg("frobnicate").assert().failure();
 }
 
 #[test]
 fn install_missing_package_arg() {
-    mxpm()
-        .arg("install")
-        .assert()
-        .failure();
+    mxpm().arg("install").assert().failure();
 }

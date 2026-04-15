@@ -26,10 +26,8 @@ pub async fn run(
     }
 
     // If reinstalling, remove existing first
-    if reinstall {
-        if crate::install::is_installed(name, config)? {
-            crate::install::remove_package(name, config)?;
-        }
+    if reinstall && crate::install::is_installed(name, config)? {
+        crate::install::remove_package(name, config)?;
     }
 
     if format == OutputFormat::Human {
@@ -38,18 +36,25 @@ pub async fn run(
 
     let entry = entry.clone();
     let registry_name = registry_name.to_string();
-    let metadata =
-        crate::install::install_package(name, &entry, &registry_name, config).await?;
+    let metadata = crate::install::install_package(name, &entry, &registry_name, config).await?;
 
     match format {
         OutputFormat::Json => output::print_json(&metadata)?,
         OutputFormat::Human => {
             match &metadata.source {
                 Source::Git { git_ref, .. } => {
-                    let short = if git_ref.len() >= 12 { &git_ref[..12] } else { git_ref };
+                    let short = if git_ref.len() >= 12 {
+                        &git_ref[..12]
+                    } else {
+                        git_ref
+                    };
                     eprintln!("Commit:  {short}");
                 }
-                Source::Tarball { hash, hash_algorithm, .. } => {
+                Source::Tarball {
+                    hash,
+                    hash_algorithm,
+                    ..
+                } => {
                     if let Some(h) = hash {
                         let algo = hash_algorithm.as_deref().unwrap_or("sha256");
                         eprintln!("Hash:    {algo}:{}", &h[..16.min(h.len())]);

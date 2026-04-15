@@ -22,7 +22,11 @@ pub fn run(format: OutputFormat, config: &Config) -> Result<(), MxpmError> {
 
             for pkg in &packages {
                 let version = pkg.version.as_deref().unwrap_or("-");
-                let date = pkg.installed_at.split('T').next().unwrap_or(&pkg.installed_at);
+                let date = pkg
+                    .installed_at
+                    .split('T')
+                    .next()
+                    .unwrap_or(&pkg.installed_at);
                 table.add_row(vec![&pkg.name, version, date]);
             }
 

@@ -11,7 +11,7 @@ pub enum OutputFormat {
 /// Print a serializable value as JSON to stdout.
 pub fn print_json(value: &impl Serialize) -> Result<(), crate::errors::MxpmError> {
     let json = serde_json::to_string_pretty(value)
-        .map_err(|e| crate::errors::MxpmError::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
+        .map_err(|e| crate::errors::MxpmError::Io(std::io::Error::other(e)))?;
     println!("{json}");
     Ok(())
 }
