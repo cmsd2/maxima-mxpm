@@ -210,6 +210,42 @@ All git source refs must be full commit hashes, not branch names or tags.
 This ensures reproducible installs — every user gets exactly the same
 version of the code.
 
+**Why pin commit hashes in the index?**
+
+Most established package managers (cargo, npm, PyPI) avoid git refs
+entirely — authors upload immutable tarballs and the registry stores
+content hashes. Source-based systems that do reference git repos take
+different approaches:
+
+- **Nix/Guix** pin commit hashes, like mxpm does. `fetchFromGitHub`
+  takes a `rev` (full commit SHA) plus a content hash. Updating
+  requires tooling (`nix flake update`, `nix-update` bots) to
+  automate the hash refresh.
+- **Homebrew** uses tagged release tarball URLs with SHA-256 hashes.
+  No commit refs — the tag produces a stable download URL.
+- **Go modules** use semver tags in the index; exact pinning is
+  deferred to a lockfile (`go.sum`).
+- **vcpkg** pins a `REF` (tag or commit) plus `SHA512` of the
+  downloaded archive.
+
+mxpm pins commit hashes directly in the index because it avoids
+needing upload infrastructure (no artifact hosting, no publish step)
+while still guaranteeing reproducible installs. The tradeoff is
+friction: updating a package requires a PR with the new SHA.
+
+If this becomes painful, natural mitigations include:
+
+1. **An update bot** that watches upstream repos and auto-PRs ref
+   updates (the Nix `nixpkgs-update` model).
+2. **Allowing version tags** in the index and resolving to commit
+   hashes at install time (the Go model), with hashes cached locally.
+3. **A `mxpm publish` command** that computes the current HEAD hash
+   and submits the PR automatically.
+
+For the current scale (~12 packages, infrequent updates), manual hash
+pinning is acceptable. The index format supports all three mitigations
+without schema changes.
+
 Authoritative metadata — dependencies, entry points, test files,
 documentation paths — lives in the package's own `manifest.toml`.
 The index is a pointer, not a copy. This is the same separation of
