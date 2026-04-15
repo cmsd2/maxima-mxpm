@@ -10,160 +10,97 @@ Cross-reference: [technical requirements](technical-requirements.md),
 
 ---
 
-## Phase 0: Seed the index
+## Phase 0: Seed the index — DONE
 
 **Goal:** A machine-readable catalog of known Maxima packages exists.
 **Delivers:** The package index repository.
-**Depends on:** Nothing.
+**Status:** Complete. Index at https://github.com/cmsd2/maxima-package-index
 
-### Work
+### What was delivered
 
-1. Create the `maxima-package-index` repository
-2. Define `schema.json` for the index format (tech req §3.2)
-3. Populate `index.json` with every known third-party package:
-   - diophantine (sdemarre)
-   - padics (josanvallejo)
-   - clifford (Prodanov)
-   - numericalMethods (ramaniji)
-   - raddenest
-   - Packages from maxima-project-on-github/maxima-packages (~20)
-   - qm-maxima (QMeqGR)
-4. Write `CONTRIBUTING.md` with the PR submission process
-5. Set up CI to validate `index.json` against the schema on PRs
+- `maxima-package-index` repository with `index.json` (12 packages)
+- `schema.json` (JSON Schema draft 2020-12) with two source types:
+  `git` (any clonable repo + pinned commit hash) and `tarball` (HTTP
+  URL + optional SHA-256 hash)
+- `CONTRIBUTING.md` with PR submission process
+- CI workflow validating schema conformance, commit hash refs, and URL
+  reachability
+- CC0-1.0 license
 
-### What's usable after this phase
+### Design decisions made during implementation
 
-The index is browsable on GitHub. Anyone can submit a package via PR.
-Nothing is installable yet, but the catalog exists and the community
-can start contributing to it immediately.
-
-### Acceptance criteria
-
-- `index.json` passes schema validation
-- At least 10 packages indexed
-- CI runs on PRs and validates schema + URL reachability
+- **Two source types instead of four.** The original design had
+  github, gitlab, tarball, and git source types. Simplified to just
+  `git` and `tarball` — git clone (via libgit2) works with any
+  hosting provider, and tarball covers release assets from anywhere.
+- **Commit hash pinning.** All git refs must be full 40-character
+  commit SHAs, not branch names or tags. This ensures reproducible
+  installs at the cost of slightly more friction when adding packages.
+- **Tarball integrity.** Optional `hash` and `hash_algorithm` fields
+  on tarball sources for SHA-256 verification.
 
 ---
 
-## Phase 1: CLI scaffold and install
+## Phase 1: CLI scaffold and install — DONE
 
 **Goal:** Users can install a package by name from the command line.
 **Delivers:** The `mxpm` binary with `install`, `list`, and `remove`.
-**Depends on:** Phase 0 (index exists).
+**Status:** Complete.
 
-### Work
+### What was delivered
 
-1. **Project setup**
-   - Rust project with `clap` for CLI argument parsing
-   - CI pipeline: build + test for all 5 target platforms (tech req §10.1)
-   - GitHub releases with pre-built binaries
+- Rust project with lib+bin split (`src/lib.rs` + `src/bin/mxpm/`)
+- Async HTTP via `reqwest` + `tokio`, git clone via `git2` (libgit2)
+- `mxpm install <package>` with `--reinstall` flag
+- `mxpm list` with tabular output
+- `mxpm remove <package>` with confirmation prompt
+- `mxpm index update` to force-refresh the cache
+- `--json` global flag for machine-readable output
+- `--yes` / `-y` global flag for non-interactive use
+- Interactive progress bars (indicatif) for downloads and clones
+- Atomic installs via staging directory + rename
+- `.mxpm.json` metadata with resolved commit hash and tarball hash
+- Config file support (`config.toml`) with environment variable
+  overrides (`MAXIMA_USERDIR`, `MXPM_REGISTRY_URL`)
+- Multi-registry support with config-ordered resolution
+- Index caching with configurable TTL (default 1 hour)
+- CI workflow (fmt, clippy, test on Linux/macOS/Windows)
+- Release workflow (cross-compile 5 targets, GitHub Releases)
+- Release binary ~3.6 MB
 
-2. **Index fetching and caching** (tech req §5.4)
-   - Fetch `index.json` over HTTPS (`reqwest` crate)
-   - Cache in platform-appropriate location (XDG / Library / AppData)
-   - `mxpm index update` to force refresh
-   - 1-hour TTL, auto-refresh on stale cache
+### Design decisions made during implementation
 
-3. **Maxima user directory detection** (tech req §5.5)
-   - `$MAXIMA_USERDIR` → `~/.maxima/` → `%USERPROFILE%/maxima/`
-   - Create if missing (with prompt)
-
-4. **`mxpm install <package>`** (tech req §4.3)
-   - Look up package in index
-   - Download tarball from GitHub/GitLab/URL
-   - Extract to `~/.maxima/<pkgname>/`
-   - Write `.mxpm.json` with install metadata
-   - Handle the "no manifest.toml" fallback (convention-based install)
-
-5. **`mxpm list`** (tech req §4.6)
-   - Scan `~/.maxima/*/` for `.mxpm.json` files
-   - Display name, version, install date
-
-6. **`mxpm remove <package>`** (tech req §4.4)
-   - Delete `~/.maxima/<pkgname>/`
-   - Confirm before deleting
-
-7. **Configuration** (tech req §12)
-   - Read `config.toml` from platform-appropriate location
-   - Support `$MAXIMA_USERDIR` and `$MAXIMA_BIN` overrides
-
-### What's usable after this phase
-
-```
-$ mxpm install diophantine
-Downloading diophantine from github:sdemarre/maxima-diophantine...
-Installing to ~/.maxima/diophantine/
-Done. Use: load("diophantine");
-
-$ mxpm list
-NAME          VERSION  INSTALLED
-diophantine   -        2026-05-01
-
-$ mxpm remove diophantine
-Remove diophantine from ~/.maxima/diophantine/? [y/N] y
-Removed.
-```
-
-The core value proposition works: search GitHub → `mxpm install foo` →
-`load("foo")` in Maxima. No path configuration, no git clone, no
-manual file placement.
-
-Version column shows `-` for packages without `manifest.toml` — this
-is expected for most existing packages during bootstrap.
-
-### Acceptance criteria
-
-- `mxpm install` works on Linux, macOS, and Windows
-- Installed package is loadable via `load("pkgname")` in Maxima 5.47+
-- `mxpm list` shows installed packages
-- `mxpm remove` cleanly removes a package
-- CI builds and tests pass on all platforms
-- Binary size < 10 MB
+- **lib+bin split.** The library can be used by other tools (e.g. a
+  future Maxima-side integration). The CLI is a thin wrapper.
+- **Async.** Using tokio + async reqwest rather than blocking HTTP.
+  Git clone via libgit2 is synchronous but wrapped in async commands.
+- **Install metadata.** `.mxpm.json` stores the resolved source (with
+  actual commit hash, not the index ref) so the `outdated` command
+  can compare what's installed against the registry.
 
 ---
 
-## Phase 2: Search and discovery
+## Phase 2: Search and discovery — DONE
 
 **Goal:** Users can find packages from the command line.
-**Delivers:** `mxpm search` and `mxpm info`.
-**Depends on:** Phase 1.
+**Delivers:** `mxpm search`, `mxpm info`, `mxpm outdated`, `mxpm upgrade`.
+**Status:** Complete.
 
-### Work
+### What was delivered
 
-1. **`mxpm search <query>`** (tech req §4.2)
-   - Full-text search across name, description, keywords
-   - Ranked results (name > keyword > description)
-   - Tabular output
+- `mxpm search <query>` with ranked full-text matching across name,
+  keywords, and description
+- `mxpm info <package>` showing all metadata + install status
+- `mxpm outdated` comparing installed sources against the registry
+- `mxpm upgrade [package]` to reinstall outdated packages
 
-2. **`mxpm info <package>`** (tech req §4.2)
-   - Show full metadata from index (and from `manifest.toml` if installed)
-   - Description, authors, license, repository URL, keywords
-   - Installation status
+### Design decisions made during implementation
 
-### What's usable after this phase
-
-```
-$ mxpm search algebra
-NAME       DESCRIPTION
-clifford   Clifford algebra for Maxima
-
-$ mxpm info clifford
-Name:        clifford
-Description: Clifford algebra for Maxima
-Authors:     Dimiter Prodanov
-License:     GPL-3.0
-Repository:  https://github.com/dprodanov/clifford
-Keywords:    algebra, clifford, geometric-algebra
-Status:      not installed
-```
-
-Discovery works. Users can find packages without browsing GitHub.
-
-### Acceptance criteria
-
-- `mxpm search` returns relevant results in < 1 second
-- `mxpm info` shows all available metadata
-- Partial name matches work (e.g. `mxpm search dioph`)
+- **Outdated comparison.** Compares the identifying fields of the
+  source (git ref or tarball URL) rather than naive equality, to avoid
+  false positives from computed metadata like tarball hashes.
+- **Upgrade = remove + install.** Simple and correct. No incremental
+  update mechanism needed at this scale.
 
 ---
 
@@ -198,11 +135,12 @@ install.
    - How to add a package to the index
    - Example walkthroughs
 
-### What's usable after this phase
+### Notes
 
-Package authors have a clear spec to follow. `mxpm check` validates their
-work before submission. Packages with manifests get richer metadata in
-`mxpm list` and `mxpm info`.
+The `manifest.toml` schema is already defined in `src/manifest.rs` and
+`install_package` already reads version from it when present. This phase
+is about formalizing the spec, adding `mxpm check` validation, and
+writing author-facing documentation.
 
 ### Acceptance criteria
 
@@ -236,18 +174,12 @@ transitive install.
    - Show what will be installed before proceeding
    - `mxpm remove` warns about reverse dependencies
 
-### What's usable after this phase
+### Notes
 
-```
-$ mxpm install my-package
-Resolving dependencies...
-  my-package 1.0.0
-  └─ diophantine ^1.0 (will install 1.0.0)
-Install 2 packages? [Y/n] y
-Installing diophantine 1.0.0...
-Installing my-package 1.0.0...
-Done.
-```
+With < 100 packages and likely < 5 dependency edges in the entire graph,
+a simple resolver is fine. Defer this until there's actual demand — no
+existing Maxima package declares dependencies on other third-party
+packages.
 
 ### Acceptance criteria
 
@@ -258,48 +190,7 @@ Done.
 
 ---
 
-## Phase 5: Update mechanism
-
-**Goal:** Users can update installed packages.
-**Delivers:** `mxpm update`.
-**Depends on:** Phase 3 (manifests with versions).
-
-### Work
-
-1. **`mxpm update [package]`** (tech req §4.5)
-   - Compare installed version/commit against current index
-   - Show available updates
-   - `mxpm update` (no args) checks all packages
-   - `mxpm update foo` updates a specific package
-
-2. **Update execution**
-   - Download new version
-   - Replace installed files (atomic: extract to temp, swap directories)
-   - Update `.mxpm.json`
-
-### What's usable after this phase
-
-```
-$ mxpm update
-Checking for updates...
-diophantine: 1.0.0 → 1.1.0 (update available)
-padics: up to date (0.3.1)
-
-$ mxpm update diophantine
-Downloading diophantine 1.1.0...
-Updated diophantine: 1.0.0 → 1.1.0
-```
-
-### Acceptance criteria
-
-- Version comparison works for semver versions
-- Commit-hash comparison works for unversioned packages
-- Update is atomic (no half-installed state on failure)
-- `mxpm update` with no args lists all available updates
-
----
-
-## Phase 6: Testing integration
+## Phase 5: Testing integration
 
 **Goal:** Package tests are runnable from the CLI.
 **Delivers:** `mxpm test`.
@@ -322,19 +213,6 @@ Updated diophantine: 1.0.0 → 1.1.0
    - Run tests for all installed packages
    - Summary report
 
-### What's usable after this phase
-
-```
-$ mxpm test diophantine
-Running rtest_diophantine.mac...
-42 tests passed, 0 failed.
-
-$ mxpm test --all
-diophantine: 42 passed, 0 failed
-padics: 18 passed, 2 failed
-FAILED: padics
-```
-
 ### Acceptance criteria
 
 - `mxpm test` runs `rtest_*.mac` through Maxima batch mode
@@ -344,7 +222,7 @@ FAILED: padics
 
 ---
 
-## Phase 7: Native code and build steps
+## Phase 6: Native code and build steps
 
 **Goal:** Packages that need compilation can declare and execute build
 steps.
@@ -367,11 +245,6 @@ steps.
    - Check availability at install time
    - Warn but don't block installation
 
-### What's usable after this phase
-
-Packages with C/Fortran code can be installed. The CLI handles the
-orchestration; the package author provides the build system.
-
 ### Acceptance criteria
 
 - `mxpm install` runs build commands when declared
@@ -381,7 +254,7 @@ orchestration; the package author provides the build system.
 
 ---
 
-## Phase 8: Documentation integration
+## Phase 7: Documentation integration
 
 **Goal:** Package documentation integrates with Maxima's help system.
 **Delivers:** Documentation-aware install and `mxpm check` validation.
@@ -402,14 +275,6 @@ orchestration; the package author provides the build system.
 3. **Author documentation**
    - Guide for producing Texinfo docs with `?`/`??` integration
    - Simplified instructions that don't require the Maxima source tree
-     (extract and ship `build_index.pl` as a standalone tool, or
-     reimplement the index-building logic in Rust as part of a future
-     `mxpm doc build` command)
-
-### What's usable after this phase
-
-Packages with pre-built documentation get `?`/`??` integration
-automatically. Authors get validation that their doc setup is correct.
 
 ### Acceptance criteria
 
@@ -420,7 +285,7 @@ automatically. Authors get validation that their doc setup is correct.
 
 ---
 
-## Phase 9: Static catalog website
+## Phase 8: Static catalog website
 
 **Goal:** A browsable web catalog of all indexed packages.
 **Delivers:** A static site generated from `index.json`.
@@ -440,12 +305,6 @@ automatically. Authors get validation that their doc setup is correct.
    - Installation command (`mxpm install foo`)
    - README rendering (fetched from repo)
 
-### What's usable after this phase
-
-Users can browse https://maxima-packages.org (or similar) to discover
-packages. This addresses the discoverability requirement (func req §1.2)
-for users who haven't yet installed the CLI.
-
 ### Acceptance criteria
 
 - Site builds automatically from `index.json` on push
@@ -455,17 +314,18 @@ for users who haven't yet installed the CLI.
 
 ---
 
-## Phase 10: Maxima-side integration
+## Phase 9: Maxima-side integration
 
 **Goal:** Package operations accessible from within a Maxima session.
 **Delivers:** A `mxpm.mac` package.
-**Depends on:** Phases 1–6 (CLI is mature).
+**Depends on:** Phases 1–5 (CLI is mature).
 
 ### Work
 
 1. **`mxpm.mac` package**
-   - `mxpm_search("query")` — shells out to `mxpm search`, displays results
-   - `mxpm_install("pkg")` — shells out to `mxpm install`
+   - `mxpm_search("query")` — shells out to `mxpm search --json`,
+     displays results
+   - `mxpm_install("pkg")` — shells out to `mxpm install --yes`
    - `mxpm_list()` — reads `.mxpm.json` files directly (no CLI needed)
    - `mxpm_info("pkg")` — reads manifest directly
    - `mxpm_test("pkg")` — runs tests via Maxima's own `batch(..., test)`
@@ -473,22 +333,6 @@ for users who haven't yet installed the CLI.
 2. **Distribution**
    - Ship `mxpm.mac` as a package in the index (self-hosting)
    - Or bundle with the CLI installer
-
-### What's usable after this phase
-
-```
-(%i1) load("mxpm");
-(%i2) mxpm_search("diophantine");
-  NAME          DESCRIPTION
-  diophantine   Solver for Diophantine equations
-(%i3) mxpm_install("diophantine");
-  Installing diophantine...
-  Done.
-(%i4) load("diophantine");
-```
-
-Users who prefer not to leave the Maxima prompt can manage packages
-from within their session.
 
 ### Acceptance criteria
 
@@ -498,52 +342,43 @@ from within their session.
 
 ---
 
-## Summary timeline
+## Summary
 
-| Phase | Deliverable | Key dependency | Effort estimate |
-|-------|------------|----------------|-----------------|
-| 0 | Package index repo | None | Small |
-| 1 | CLI: install, list, remove | Phase 0 | Medium |
-| 2 | CLI: search, info | Phase 1 | Small |
-| 3 | manifest.toml spec + check | Phase 1 | Small–Medium |
-| 4 | Dependency resolution | Phase 3 | Medium |
-| 5 | Update mechanism | Phase 3 | Small–Medium |
-| 6 | Test integration | Phase 1 | Small |
-| 7 | Native code / build steps | Phase 3 | Medium |
-| 8 | Documentation integration | Phase 3 | Small–Medium |
-| 9 | Static catalog website | Phase 0 | Medium |
-| 10 | Maxima-side integration | Phases 1–6 | Medium |
+| Phase | Deliverable | Status |
+|-------|------------|--------|
+| 0 | Package index repo | **Done** |
+| 1 | CLI: install, list, remove | **Done** |
+| 2 | CLI: search, info, outdated, upgrade | **Done** |
+| 3 | manifest.toml spec + check | Not started |
+| 4 | Dependency resolution | Not started |
+| 5 | Test integration | Not started |
+| 6 | Native code / build steps | Not started |
+| 7 | Documentation integration | Not started |
+| 8 | Static catalog website | Not started |
+| 9 | Maxima-side integration | Not started |
+
+### What to do next
+
+Phases 0–2 are the MVP and are complete. Before pursuing further phases,
+the priority should be:
+
+1. **Community engagement.** Reach out to the maxima-packages
+   maintainers and the Maxima mailing list. The index and the tool
+   should reflect community needs, not assumptions.
+2. **Real-world testing.** Install every indexed package on Linux,
+   macOS, and Windows. Verify `load()` works in Maxima 5.47+.
+3. **Phase 5 (testing)** is the most independently useful next step —
+   it doesn't require manifests and provides immediate value.
+4. **Phase 3 (manifests)** unlocks phases 4, 6, and 7 but should wait
+   for community input on what fields actually matter.
 
 ### Critical path
 
 ```
 Phase 0 → Phase 1 → Phase 3 → Phase 4
-                  ↘ Phase 2
-                  ↘ Phase 6
+                   ↘ Phase 2 (done)
+                   ↘ Phase 5
 ```
 
-Phases 0–3 form the critical path. After Phase 3, work fans out and
-phases 4–10 can be pursued in parallel or in any order based on
-community feedback.
-
-### Parallelizable work
-
-After Phase 1 ships, the following can proceed concurrently:
-
-- **Phase 2** (search) — independent of manifests
-- **Phase 6** (testing) — only needs install + Maxima binary detection
-- **Phase 9** (website) — only needs the index
-
-After Phase 3 ships:
-
-- **Phases 4, 5, 7, 8** can proceed in any order
-
-Phase 10 (Maxima-side integration) should wait until the CLI is stable.
-
-### Minimum viable product
-
-**Phases 0 + 1 + 2** constitute the MVP. With these three phases, a user
-can search for packages, install them by name, and load them in Maxima.
-This is enough to break the chicken-and-egg cycle: it provides immediate
-value (discovery and one-command install) while requiring minimal effort
-from package authors (just submit a PR to the index — no manifest needed).
+After Phase 3, work fans out and phases 4–9 can be pursued in any
+order based on community feedback.
