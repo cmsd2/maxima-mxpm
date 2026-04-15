@@ -180,7 +180,7 @@ The index contains just enough to search and locate packages:
 
 ```json
 {
-  "schema_version": 1,
+  "version": 1,
   "packages": {
     "diophantine": {
       "description": "Solver for Diophantine equations",
@@ -189,15 +189,26 @@ The index contains just enough to search and locate packages:
       "license": "GPL-3.0-or-later",
       "repository": "https://github.com/sdemarre/maxima-diophantine",
       "source": {
-        "type": "github",
-        "owner": "sdemarre",
-        "repo": "maxima-diophantine",
-        "ref": "v1.0.0"
+        "type": "git",
+        "url": "https://github.com/sdemarre/maxima-diophantine.git",
+        "ref": "4adf29185a49f3ef8ec88763114c04fbc68f80bc"
       }
     }
   }
 }
 ```
+
+Two source types are supported:
+
+- **`git`** — clones any git repository (via libgit2) at a pinned commit
+  hash. Fields: `url`, `ref` (must be a 40-character commit SHA), and
+  optional `subdir` for monorepo packages.
+- **`tarball`** — downloads an archive over HTTPS. Fields: `url`, and
+  optional `hash`/`hash_algorithm` for integrity verification (SHA-256).
+
+All git source refs must be full commit hashes, not branch names or tags.
+This ensures reproducible installs — every user gets exactly the same
+version of the code.
 
 Authoritative metadata — dependencies, entry points, test files,
 documentation paths — lives in the package's own `manifest.toml`.
@@ -353,13 +364,16 @@ to internal mirrors:
 
 ```json
 {
-  "schema_version": 1,
+  "version": 1,
   "packages": {
     "diophantine": {
       "description": "Solver for Diophantine equations",
+      "repository": "https://github.com/sdemarre/maxima-diophantine",
       "source": {
         "type": "tarball",
-        "url": "https://artifactory.example.com/maxima-pkg/diophantine-1.0.0.tar.gz"
+        "url": "https://artifactory.example.com/maxima-pkg/diophantine-1.0.0.tar.gz",
+        "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "hash_algorithm": "sha256"
       }
     }
   }
@@ -557,8 +571,11 @@ right approach for Maxima's audience: mathematicians who may not have
 git installed. GitHub, GitLab, and SourceForge all provide tarball
 download APIs.
 
-The CLI uses `reqwest` for HTTP and `flate2`/`tar` for archive handling
-— well-maintained Rust crates used by Cargo itself.
+The CLI uses `reqwest` for HTTP, `flate2`/`tar` for archive handling,
+and `git2` (libgit2 bindings) for git clone — well-maintained Rust
+crates. Both tarball and git clone sources are supported; git clone
+works with any hosting provider (GitHub, GitLab, SourceForge,
+self-hosted).
 
 ### Contribution model: pull requests
 
@@ -825,9 +842,21 @@ submitted via PR — but index maintainers do not audit code.
 
 ### Transport security
 
-All downloads use HTTPS with certificate verification. The index URL is
-hardcoded in the CLI binary (configurable via `config.toml`), preventing
-trivial redirection attacks.
+All downloads use HTTPS with certificate verification (via `rustls`,
+no OpenSSL dependency). The index URL is hardcoded in the CLI binary
+(configurable via `config.toml`), preventing trivial redirection attacks.
+
+### Integrity verification
+
+For tarball sources, the index can include a SHA-256 hash. When present,
+the CLI computes the hash of the downloaded archive and rejects it if
+it doesn't match. The resolved commit hash and tarball hash are recorded
+in the per-package `.mxpm.json` metadata at install time, providing an
+audit trail of exactly what was installed.
+
+For git sources, all refs are pinned to full commit hashes (not branch
+names or tags), ensuring bit-identical installs across users and time.
+The resolved commit OID is recorded in `.mxpm.json`.
 
 ### No code execution during install
 
@@ -838,9 +867,8 @@ when the user explicitly calls `load()` or `mxpm test`.
 
 ### Future considerations
 
-Index signing (e.g. with minisign) and package checksums in the index
-are natural next steps when the ecosystem matures. They can be added
-without changing the architecture.
+Index signing (e.g. with minisign) is a natural next step when the
+ecosystem matures. It can be added without changing the architecture.
 
 ---
 

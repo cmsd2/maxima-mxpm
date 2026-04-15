@@ -1,0 +1,65 @@
+[package]
+name = "mxpm"
+version = "0.1.0"
+edition = "2024"
+description = "Maxima Package Manager"
+license = "MIT OR Apache-2.0"
+
+[[bin]]
+name = "mxpm"
+path = "src/bin/mxpm/main.rs"
+
+[lib]
+name = "mxpm"
+path = "src/lib.rs"
+
+[dependencies]
+# CLI
+clap = { version = "4", features = ["derive"] }
+
+# HTTP
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+
+# Async runtime
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+
+# Archive handling
+flate2 = "1"
+tar = "0.4"
+
+# Git clone
+git2 = "0.20"
+
+# Temp directories (used for git clone staging)
+tempfile = "3"
+
+# Date/time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Error handling
+thiserror = "2"
+anyhow = "1"
+
+# Platform-appropriate directories
+dirs = "6"
+
+# Terminal output
+comfy-table = "7"
+sha2 = "0.11.0"
+hex = "0.4.3"
+indicatif = "0.18.4"
+
+[dev-dependencies]
+assert_cmd = "2"
+predicates = "3"
+
+[profile.release]
+lto = true
+strip = true
+codegen-units = 1
+opt-level = "s"
