@@ -249,7 +249,7 @@ mod tests {
         assert!(manifest.contains("doc = \"doc/test-pkg.md\""));
 
         let entry = fs::read_to_string(target.join("test-pkg.mac")).unwrap();
-        assert!(entry.contains("load(\"test-pkg-index.lisp\")"));
+        assert!(entry.contains("load(\"test-pkg-index.lisp\")$"));
 
         let doc = fs::read_to_string(target.join("doc/test-pkg.md")).unwrap();
         assert!(doc.contains("# Package test-pkg"));
