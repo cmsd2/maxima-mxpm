@@ -23,6 +23,20 @@ load("{{ name }}");
 {{ name }}_hello();
 ```
 
+## Documentation
+
+Build documentation artifacts (`.info` and help index):
+
+```
+mxpm doc build
+```
+
+Live preview with mdBook:
+
+```
+mxpm doc serve
+```
+
 ## License
 
 MIT

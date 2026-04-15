@@ -44,6 +44,14 @@ mxpm upgrade                  # Upgrade all outdated packages
 mxpm upgrade <package>        # Upgrade a specific package
 mxpm remove <package>         # Remove a package
 mxpm index update             # Force-refresh the package index
+
+# Documentation
+mxpm doc build                # Build .info and help index from manifest
+mxpm doc build file.md        # Build from a specific source file
+mxpm doc build --mdbook       # Also generate mdBook HTML
+mxpm doc watch                # Watch source and rebuild on changes
+mxpm doc serve                # Live preview with mdbook serve
+mxpm doc index file.info      # Generate help index from .info file
 ```
 
 ### Global flags
@@ -98,10 +106,28 @@ mxpm install --path .              # copy — snapshot install
 Or start from the [maxima-package-template](https://github.com/cmsd2/maxima-package-template)
 on GitHub.
 
+## Documentation
+
+`mxpm doc build` generates documentation artifacts from `.texi` or `.md` source files.
+If a `doc` field is set in `manifest.toml`, no arguments are needed.
+
+From Markdown input, headings like `### Function: name (args)` are converted to
+Texinfo `@deffn` definitions, making them available via Maxima's `?` and `??` help.
+
+Use `mxpm doc serve` for a live preview with hot reload while writing docs.
+
+### External tools
+
+| Tool | Required for |
+|------|-------------|
+| `makeinfo` (GNU Texinfo) | All doc builds |
+| `pandoc` | Markdown input |
+| `mdbook` | `--mdbook` flag / `doc serve` |
+
 ## Requirements
 
 - Maxima 5.47+ (for automatic `~/.maxima/` subdirectory scanning)
-- No additional tools needed — mxpm is a single binary
+- `makeinfo` and `pandoc` for documentation builds (optional)
 
 ## Package index
 
