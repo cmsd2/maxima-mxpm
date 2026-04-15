@@ -1,0 +1,17 @@
+# Package {{ name }}
+
+## Introduction to {{ name }}
+
+TODO: describe {{ name }}.
+
+To use the package:
+
+```
+load("{{ name }}");
+```
+
+## Definitions for {{ name }}
+
+### Function: {{ name }}_hello ()
+
+TODO: describe this function.

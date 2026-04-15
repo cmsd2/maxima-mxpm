@@ -62,6 +62,11 @@ hex = "0.4.3"
 indicatif = "0.18.4"
 # Templating (for mxpm init)
 tera = { version = "1.20.1", default-features = false }
+# Regex (for info index parsing)
+regex = "1"
+notify = "7"
+notify-debouncer-mini = "0.5"
+ctrlc = "3"
 
 [features]
 vendored-openssl = ["dep:openssl"]

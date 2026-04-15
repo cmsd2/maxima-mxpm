@@ -18,6 +18,7 @@ pub struct PackageInfo {
     pub repository: Option<String>,
     pub keywords: Option<Vec<String>>,
     pub maxima: Option<String>,
+    pub doc: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -74,6 +75,21 @@ names = ["Test Author", "Another Author"]
         assert_eq!(m.package.keywords.unwrap().len(), 2);
         let authors = m.package.authors.unwrap();
         assert_eq!(authors.names.len(), 2);
+    }
+
+    #[test]
+    fn parse_manifest_with_doc() {
+        let toml = r#"
+[package]
+name = "my-pkg"
+version = "1.0.0"
+description = "A package with docs"
+license = "MIT"
+entry = "my-pkg.mac"
+doc = "doc/my-pkg.md"
+"#;
+        let m = parse_manifest(toml).unwrap();
+        assert_eq!(m.package.doc.unwrap(), "doc/my-pkg.md");
     }
 
     #[test]

@@ -8,6 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- `mxpm doc build` command to generate `.info`, `-index.lisp`, XML, and mdBook from `.texi` or `.md` sources
+- `mxpm doc index` command to generate Maxima help index (`*-index.lisp`) from `.info` or `.texi` files
+- `mxpm doc watch` command to watch doc source files and rebuild on changes
+- `mxpm doc serve` command for live preview with `mdbook serve` and automatic source regeneration
+- Markdown-to-Texinfo conversion via Pandoc with post-processing for `@deffn`/`@defvr` blocks
+- Markdown heading conventions: `### Function: name (args)` and `### Variable: name`
+- mdBook source generation from Markdown with section splitting and styled definition headings
+- Manifest-driven doc builds: `mxpm doc build` with no arguments reads `doc` field from `manifest.toml`
+- `doc` field in `manifest.toml` for specifying the package's documentation source file
+- Doc template (`doc/<name>.md`) scaffolded by `mxpm init`, with `load("<name>-index.lisp")` in entry file
 - `mxpm init <name>` to scaffold new packages from Tera templates
 - `mxpm install --path <dir>` to install from a local directory (copy mode)
 - `mxpm install --path <dir> --editable` to symlink a local package for live development

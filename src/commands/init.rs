@@ -58,6 +58,9 @@ const BASIC_TEMPLATES: &[(&str, &str)] = &[
     ("manifest.toml", include_str!("../../templates/basic/manifest.toml.tera")),
     ("{{ name }}.mac", include_str!("../../templates/basic/entry.mac.tera")),
     ("rtest_{{ name }}.mac", include_str!("../../templates/basic/rtest.mac.tera")),
+    ("doc/{{ name }}.md", include_str!("../../templates/basic/doc.md.tera")),
+    (".github/workflows/docs.yml", include_str!("../../templates/basic/docs-ci.yml.tera")),
+    (".github/workflows/pages.yml", include_str!("../../templates/basic/pages.yml.tera")),
     ("README.md", include_str!("../../templates/basic/README.md.tera")),
     (".gitignore", include_str!("../../templates/basic/gitignore.tera")),
 ];
@@ -133,7 +136,11 @@ fn generate_from_templates(
             .render_str(content_tpl, &context)
             .map_err(|e| MxpmError::Io(std::io::Error::other(e)))?;
 
-        fs::write(dir.join(&filename), &content)?;
+        let file_path = dir.join(&filename);
+        if let Some(parent) = file_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::write(&file_path, &content)?;
         created.push(filename);
     }
 
@@ -200,12 +207,22 @@ mod tests {
         assert!(target.join("manifest.toml").exists());
         assert!(target.join("test-pkg.mac").exists());
         assert!(target.join("rtest_test-pkg.mac").exists());
+        assert!(target.join("doc/test-pkg.md").exists());
+        assert!(target.join(".github/workflows/docs.yml").exists());
+        assert!(target.join(".github/workflows/pages.yml").exists());
         assert!(target.join("README.md").exists());
         assert!(target.join(".gitignore").exists());
 
         let manifest = fs::read_to_string(target.join("manifest.toml")).unwrap();
         assert!(manifest.contains("name = \"test-pkg\""));
         assert!(manifest.contains("entry = \"test-pkg.mac\""));
+        assert!(manifest.contains("doc = \"doc/test-pkg.md\""));
+
+        let entry = fs::read_to_string(target.join("test-pkg.mac")).unwrap();
+        assert!(entry.contains("load(\"test-pkg-index.lisp\")"));
+
+        let doc = fs::read_to_string(target.join("doc/test-pkg.md")).unwrap();
+        assert!(doc.contains("# Package test-pkg"));
     }
 
     #[test]

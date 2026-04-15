@@ -66,6 +66,24 @@ pub enum MxpmError {
     #[error("manifest.toml not found in {path}")]
     ManifestNotFound { path: String },
 
+    #[error("info file not found: {path}")]
+    InfoFileNotFound { path: String },
+
+    #[error("invalid info file format: {message}")]
+    InvalidInfoFormat { message: String },
+
+    #[error("makeinfo not found; install GNU Texinfo to build documentation from .texi files")]
+    MakeinfoNotFound,
+
+    #[error("makeinfo failed: {message}")]
+    MakeinfoFailed { message: String },
+
+    #[error("pandoc not found; install Pandoc to build documentation from .md files")]
+    PandocNotFound,
+
+    #[error("pandoc failed: {message}")]
+    PandocFailed { message: String },
+
     #[error("{0}")]
     Io(#[from] std::io::Error),
 }

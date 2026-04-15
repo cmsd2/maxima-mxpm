@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "TODO: describe {{ name }}"
 license = "MIT"
 entry = "{{ name }}.mac"
+doc = "doc/{{ name }}.md"
 
 [test]
 files = ["rtest_{{ name }}.mac"]

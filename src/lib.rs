@@ -2,6 +2,7 @@ pub mod commands;
 pub mod config;
 pub mod errors;
 pub mod index;
+pub mod info_index;
 pub mod install;
 pub mod manifest;
 pub mod output;

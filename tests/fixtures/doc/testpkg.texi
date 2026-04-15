@@ -1,0 +1,55 @@
+\input texinfo
+
+@c Test fixture for mxpm doc index integration tests.
+@c Structure mirrors Maxima's share/template-standalone.texi.
+
+@setfilename testpkg.info
+@settitle Package testpkg
+
+@ifinfo
+@macro var {expr}
+<\expr\>
+@end macro
+@end ifinfo
+
+@dircategory Mathematics/Maxima
+@direntry
+* testpkg: (testpkg).  A test package for mxpm.
+@end direntry
+
+@node Top, Introduction to testpkg, (dir), (dir)
+@top
+@menu
+* Introduction to testpkg::
+* Definitions for testpkg::
+* Function and variable index::
+@end menu
+@chapter Package testpkg
+
+@node Introduction to testpkg, Definitions for testpkg, Top, Top
+@section Introduction to testpkg
+
+Package @code{testpkg} is a test fixture for the mxpm documentation tools.
+
+@node Definitions for testpkg, Function and variable index, Introduction to testpkg, Top
+@section Definitions for testpkg
+
+@deffn {Function} hello (@var{name})
+
+Returns a greeting for @var{name}.
+
+@end deffn
+
+@defvr {Variable} greeting
+Default value: @code{"hi"}
+
+The greeting prefix used by @code{hello}.
+
+@end defvr
+
+@node Function and variable index,  , Definitions for testpkg, Top
+@appendix Function and variable index
+@printindex fn
+@printindex vr
+
+@bye

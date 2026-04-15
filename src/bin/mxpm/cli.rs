@@ -87,12 +87,89 @@ pub enum Command {
         #[command(subcommand)]
         action: IndexAction,
     },
+
+    /// Documentation tools
+    Doc {
+        #[command(subcommand)]
+        command: DocCommand,
+    },
 }
 
 #[derive(Subcommand)]
 pub enum IndexAction {
     /// Force-refresh the cached index
     Update,
+}
+
+#[derive(Subcommand)]
+pub enum DocCommand {
+    /// Build documentation from a .texi or .md source file
+    Build {
+        /// Path to a .texi or .md file (reads from manifest.toml if omitted)
+        file: Option<String>,
+
+        /// Output directory (default: directory containing the .texi file)
+        #[arg(long, short)]
+        output: Option<String>,
+
+        /// Also generate XML output
+        #[arg(long)]
+        xml: bool,
+
+        /// Also generate mdBook source
+        #[arg(long)]
+        mdbook: bool,
+    },
+
+    /// Watch a doc source file and rebuild on changes
+    Watch {
+        /// Path to a .texi or .md file (reads from manifest.toml if omitted)
+        file: Option<String>,
+
+        /// Output directory
+        #[arg(long, short)]
+        output: Option<String>,
+
+        /// Also generate XML output
+        #[arg(long)]
+        xml: bool,
+
+        /// Also generate mdBook source
+        #[arg(long)]
+        mdbook: bool,
+    },
+
+    /// Serve mdBook HTML with live reload, rebuilding on source changes
+    Serve {
+        /// Path to a .md file (reads from manifest.toml if omitted)
+        file: Option<String>,
+
+        /// Port for the HTTP server
+        #[arg(long, short, default_value = "3000")]
+        port: u16,
+
+        /// Hostname to bind to
+        #[arg(long, short = 'n', default_value = "localhost")]
+        hostname: String,
+
+        /// Open browser after starting
+        #[arg(long)]
+        open: bool,
+    },
+
+    /// Generate a Maxima help index from .texi or .info files
+    Index {
+        /// Path to a .texi or .info file (if .texi, makeinfo is invoked first)
+        file: String,
+
+        /// Output file (default: <stem>-index.lisp next to the .info file, or - for stdout)
+        #[arg(long, short)]
+        output: Option<String>,
+
+        /// Installation path for info files (uses maxima-load-pathname-directory if omitted)
+        #[arg(long)]
+        install_path: Option<String>,
+    },
 }
 
 pub async fn run(cli: Cli) -> anyhow::Result<()> {
@@ -140,6 +217,39 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
         Command::Index { action } => match action {
             IndexAction::Update => {
                 commands::index::update(format, &config).await?;
+            }
+        },
+        Command::Doc { command } => match command {
+            DocCommand::Build {
+                file,
+                output,
+                xml,
+                mdbook,
+            } => {
+                commands::doc::run_build(file.as_deref(), output.as_deref(), xml, mdbook)?;
+            }
+            DocCommand::Watch {
+                file,
+                output,
+                xml,
+                mdbook,
+            } => {
+                commands::doc::run_watch(file.as_deref(), output.as_deref(), xml, mdbook)?;
+            }
+            DocCommand::Serve {
+                file,
+                port,
+                hostname,
+                open,
+            } => {
+                commands::doc::run_serve(file.as_deref(), port, &hostname, open)?;
+            }
+            DocCommand::Index {
+                file,
+                output,
+                install_path,
+            } => {
+                commands::doc::run_index(&file, output.as_deref(), install_path.as_deref())?;
             }
         },
     }
