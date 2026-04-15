@@ -77,7 +77,7 @@ include an entry named `community`.
 ## Requirements
 
 - Maxima 5.47+ (for automatic `~/.maxima/` subdirectory scanning)
-- No other dependencies — mxpm is a single static binary
+- No additional tools needed — mxpm is a single binary
 
 ## Package index
 

@@ -127,10 +127,11 @@ Three components, each independently simple:
 
 ### The CLI tool: `mxpm`
 
-A single Rust binary, statically linked, distributed for Linux (x86_64,
-aarch64), macOS (x86_64, aarch64), and Windows (x86_64). No runtime
-dependencies. No installation framework — download the binary and put
-it on your PATH.
+A single Rust binary, distributed for Linux (x86_64, aarch64), macOS
+(x86_64, aarch64), and Windows (x86_64). Linux builds target musl via
+`cross` for maximum portability. On macOS and Windows the binary links
+against system libraries. No installation framework — download the
+binary and put it on your PATH.
 
 The CLI is deliberately external to Maxima. This is the most important
 architectural decision and the one that distinguishes this design from
@@ -157,7 +158,7 @@ Phase 10).
 
 **Why Rust?**
 
-- Single binary, no runtime dependencies — critical for an audience of
+- Single binary with minimal dependencies — critical for an audience of
   mathematicians who may not have development toolchains installed
 - Cross-platform with a single codebase
 - Strong HTTP, JSON, TOML, and archive handling in the ecosystem
@@ -428,7 +429,7 @@ Maxima packaging effort addresses it at all.
 
 The system has no running infrastructure:
 - The index is a static JSON file in a Git repo
-- The CLI is a compiled binary with no runtime dependencies
+- The CLI is a compiled binary with minimal system dependencies
 - Packages are hosted by their authors on GitHub/GitLab
 - CI validates index contributions automatically
 
@@ -457,8 +458,8 @@ authors changing anything.
 
 ### Cross-platform (§6.1) and all distributions (§6.2)
 
-The CLI is distributed as a statically-linked binary for all major
-platforms. It doesn't interact with Common Lisp, so it works regardless
+The CLI is distributed as a compiled binary for all major platforms.
+It doesn't interact with Common Lisp, so it works regardless
 of which Lisp implementation Maxima uses, whether Maxima is a standalone
 binary or a Lisp image, or how Maxima was installed.
 
@@ -470,8 +471,8 @@ TeX, and Unix).
 ### No external tooling (§6.3)
 
 The CLI is a single binary. Users don't need git, curl, Python, Perl,
-or any other tool. This is the advantage of Rust: statically-linked
-binaries with built-in HTTP, TLS, JSON, TOML, and archive handling.
+or any other tool. Rust provides built-in HTTP, TLS (via rustls), JSON,
+TOML, and archive handling with only standard system library dependencies.
 
 Contrast with: maxima-asdf (requires Quicklisp + drakma), mext
 (requires bash), PKG-maxima (requires Perl + TeX + makeinfo + AWK +
@@ -842,8 +843,7 @@ submitted via PR — but index maintainers do not audit code.
 
 ### Transport security
 
-All downloads use HTTPS with certificate verification (via `rustls`,
-no OpenSSL dependency). The index URL is hardcoded in the CLI binary
+All downloads use HTTPS with certificate verification. The index URL is hardcoded in the CLI binary
 (configurable via `config.toml`), preventing trivial redirection attacks.
 
 ### Integrity verification
