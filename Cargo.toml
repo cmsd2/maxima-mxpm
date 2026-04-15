@@ -35,6 +35,9 @@ tar = "0.4"
 # Git clone
 git2 = "0.20"
 
+# Vendor OpenSSL for cross-compilation in CI
+openssl = { version = "0.10", features = ["vendored"] }
+
 # Temp directories (used for git clone staging)
 tempfile = "3"
 
