@@ -128,10 +128,9 @@ Three components, each independently simple:
 ### The CLI tool: `mxpm`
 
 A single Rust binary, distributed for Linux (x86_64, aarch64), macOS
-(x86_64, aarch64), and Windows (x86_64). Linux builds target musl via
-`cross` for maximum portability. On macOS and Windows the binary links
-against system libraries. No installation framework — download the
-binary and put it on your PATH.
+(x86_64, aarch64), and Windows (x86_64). The binary links against
+system libraries (libc, TLS). No installation framework — download
+the binary and put it on your PATH.
 
 The CLI is deliberately external to Maxima. This is the most important
 architectural decision and the one that distinguishes this design from
