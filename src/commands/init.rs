@@ -55,14 +55,38 @@ struct InitResult {
 
 /// Template definitions: (filename_template, content_template)
 const BASIC_TEMPLATES: &[(&str, &str)] = &[
-    ("manifest.toml", include_str!("../../templates/basic/manifest.toml.tera")),
-    ("{{ name }}.mac", include_str!("../../templates/basic/entry.mac.tera")),
-    ("rtest_{{ name }}.mac", include_str!("../../templates/basic/rtest.mac.tera")),
-    ("doc/{{ name }}.md", include_str!("../../templates/basic/doc.md.tera")),
-    (".github/workflows/docs.yml", include_str!("../../templates/basic/docs-ci.yml.tera")),
-    (".github/workflows/pages.yml", include_str!("../../templates/basic/pages.yml.tera")),
-    ("README.md", include_str!("../../templates/basic/README.md.tera")),
-    (".gitignore", include_str!("../../templates/basic/gitignore.tera")),
+    (
+        "manifest.toml",
+        include_str!("../../templates/basic/manifest.toml.tera"),
+    ),
+    (
+        "{{ name }}.mac",
+        include_str!("../../templates/basic/entry.mac.tera"),
+    ),
+    (
+        "rtest_{{ name }}.mac",
+        include_str!("../../templates/basic/rtest.mac.tera"),
+    ),
+    (
+        "doc/{{ name }}.md",
+        include_str!("../../templates/basic/doc.md.tera"),
+    ),
+    (
+        ".github/workflows/docs.yml",
+        include_str!("../../templates/basic/docs-ci.yml.tera"),
+    ),
+    (
+        ".github/workflows/pages.yml",
+        include_str!("../../templates/basic/pages.yml.tera"),
+    ),
+    (
+        "README.md",
+        include_str!("../../templates/basic/README.md.tera"),
+    ),
+    (
+        ".gitignore",
+        include_str!("../../templates/basic/gitignore.tera"),
+    ),
 ];
 
 pub fn run(
@@ -202,7 +226,13 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let target = tmp.path().join("test-pkg");
 
-        run("test-pkg", Some(target.to_str().unwrap()), "basic", OutputFormat::Human).unwrap();
+        run(
+            "test-pkg",
+            Some(target.to_str().unwrap()),
+            "basic",
+            OutputFormat::Human,
+        )
+        .unwrap();
 
         assert!(target.join("manifest.toml").exists());
         assert!(target.join("test-pkg.mac").exists());
@@ -231,7 +261,12 @@ mod tests {
         let target = tmp.path().join("existing");
         fs::create_dir(&target).unwrap();
 
-        let result = run("existing", Some(target.to_str().unwrap()), "basic", OutputFormat::Human);
+        let result = run(
+            "existing",
+            Some(target.to_str().unwrap()),
+            "basic",
+            OutputFormat::Human,
+        );
         assert!(result.is_err());
     }
 
@@ -240,7 +275,12 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let target = tmp.path().join("test-pkg");
 
-        let result = run("test-pkg", Some(target.to_str().unwrap()), "ffi", OutputFormat::Human);
+        let result = run(
+            "test-pkg",
+            Some(target.to_str().unwrap()),
+            "ffi",
+            OutputFormat::Human,
+        );
         assert!(result.is_err());
     }
 }

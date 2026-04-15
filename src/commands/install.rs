@@ -66,8 +66,7 @@ fn run_local(
         eprintln!("Installing {name} from local path ({mode})...");
     }
 
-    let metadata =
-        crate::install::install_local_package(name, source_dir, editable, config)?;
+    let metadata = crate::install::install_local_package(name, source_dir, editable, config)?;
 
     match format {
         OutputFormat::Json => output::print_json(&metadata)?,
