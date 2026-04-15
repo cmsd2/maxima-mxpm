@@ -100,6 +100,7 @@ fn source_ref(source: &Source) -> Option<String> {
     match source {
         Source::Git { git_ref, .. } => Some(git_ref.clone()),
         Source::Tarball { url, .. } => Some(url.clone()),
+        Source::Local { path, .. } => Some(path.clone()),
     }
 }
 

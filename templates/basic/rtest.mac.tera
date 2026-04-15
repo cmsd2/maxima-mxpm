@@ -1,0 +1,9 @@
+/* Tests for {{ name }} */
+
+/* load the package */
+(load("{{ name }}"), true);
+true;
+
+/* test the demo function */
+{{ name }}_hello();
+"{{ name }} is loaded!";

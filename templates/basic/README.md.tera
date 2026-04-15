@@ -1,0 +1,28 @@
+# {{ name }}
+
+TODO: Describe what this package does.
+
+## Install
+
+Install locally during development:
+
+```
+mxpm install --path . --editable
+```
+
+Or copy-install:
+
+```
+mxpm install --path .
+```
+
+## Usage
+
+```maxima
+load("{{ name }}");
+{{ name }}_hello();
+```
+
+## License
+
+MIT

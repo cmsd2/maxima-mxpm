@@ -19,7 +19,7 @@ auto-scans on startup. No path configuration needed — just
 
 ## Install
 
-Download a binary from the [releases page](https://github.com/cmsd2/maxima-packages/releases)
+Download a binary from the [releases page](https://github.com/cmsd2/maxima-mxpm/releases)
 and place it on your PATH.
 
 Or build from source:
@@ -31,9 +31,12 @@ cargo install --locked --path .
 ## Usage
 
 ```
+mxpm init <name>              # Scaffold a new package
 mxpm search <query>           # Search for packages
 mxpm info <package>           # Show package details
-mxpm install <package>        # Install a package
+mxpm install <package>        # Install a package from the registry
+mxpm install --path <dir>     # Install from a local directory
+mxpm install --path . -e      # Install as editable (symlink)
 mxpm install --reinstall <p>  # Reinstall a package
 mxpm list                     # List installed packages
 mxpm outdated                 # Show packages with updates available
@@ -73,6 +76,27 @@ include an entry named `community`.
 |----------|-------------|
 | `MAXIMA_USERDIR` | Override the Maxima user directory |
 | `MXPM_REGISTRY_URL` | Override the default registry URL |
+
+## Creating packages
+
+Scaffold a new package:
+
+```bash
+mxpm init my-package
+cd my-package
+git init
+```
+
+This creates a `manifest.toml`, entry point `.mac` file, test file, README, and
+`.gitignore`. Install it locally for development:
+
+```bash
+mxpm install --path . --editable   # symlink — edits are live
+mxpm install --path .              # copy — snapshot install
+```
+
+Or start from the [maxima-package-template](https://github.com/cmsd2/maxima-package-template)
+on GitHub.
 
 ## Requirements
 

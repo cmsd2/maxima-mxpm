@@ -1,0 +1,9 @@
+[package]
+name = "{{ name }}"
+version = "0.1.0"
+description = "TODO: describe {{ name }}"
+license = "MIT"
+entry = "{{ name }}.mac"
+
+[test]
+files = ["rtest_{{ name }}.mac"]

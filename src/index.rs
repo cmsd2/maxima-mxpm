@@ -37,6 +37,11 @@ pub enum Source {
         git_ref: String,
         subdir: Option<String>,
     },
+    Local {
+        path: String,
+        #[serde(default)]
+        editable: bool,
+    },
 }
 
 impl Source {
@@ -44,7 +49,7 @@ impl Source {
     pub fn subdir(&self) -> Option<&str> {
         match self {
             Source::Git { subdir, .. } => subdir.as_deref(),
-            Source::Tarball { .. } => None,
+            Source::Tarball { .. } | Source::Local { .. } => None,
         }
     }
 }

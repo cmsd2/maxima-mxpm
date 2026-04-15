@@ -23,12 +23,20 @@ pub struct Cli {
 pub enum Command {
     /// Install a package
     Install {
-        /// Package name
-        package: String,
+        /// Package name (required for registry install, optional with --path)
+        package: Option<String>,
 
         /// Reinstall if already installed
         #[arg(long)]
         reinstall: bool,
+
+        /// Install from a local directory instead of the registry
+        #[arg(long)]
+        path: Option<String>,
+
+        /// Symlink instead of copy (requires --path)
+        #[arg(long, requires = "path")]
+        editable: bool,
     },
 
     /// List installed packages
@@ -44,6 +52,19 @@ pub enum Command {
     Search {
         /// Search query
         query: String,
+    },
+
+    /// Create a new package from a template
+    Init {
+        /// Package name
+        name: String,
+
+        /// Directory to create (defaults to ./<name>)
+        path: Option<String>,
+
+        /// Template to use
+        #[arg(long, default_value = "basic")]
+        template: String,
     },
 
     /// Show detailed package information
@@ -83,8 +104,20 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
     };
 
     match cli.command {
-        Command::Install { package, reinstall } => {
-            commands::install::run(&package, reinstall, format, &config).await?;
+        Command::Install {
+            package,
+            reinstall,
+            path,
+            editable,
+        } => {
+            commands::install::run(package.as_deref(), reinstall, path.as_deref(), editable, format, &config).await?;
+        }
+        Command::Init {
+            name,
+            path,
+            template,
+        } => {
+            commands::init::run(&name, path.as_deref(), &template, format)?;
         }
         Command::List => {
             commands::list::run(format, &config)?;

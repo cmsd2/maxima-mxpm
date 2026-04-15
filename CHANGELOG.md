@@ -8,7 +8,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- `mxpm init <name>` to scaffold new packages from Tera templates
+- `mxpm install --path <dir>` to install from a local directory (copy mode)
+- `mxpm install --path <dir> --editable` to symlink a local package for live development
+- Package name validation (2-64 chars, lowercase + hyphens, no `maxima-` prefix)
+- `Local` source type in `.mxpm.json` metadata for locally installed packages
+- Tera templating engine for extensible package scaffolding
+
 ### Changed
+
+- `mxpm install` package argument is now optional when `--path` is provided
+- `mxpm remove` handles symlinked (editable) packages correctly
+- OpenSSL vendoring is now behind an optional `vendored-openssl` feature flag
+- Added `repository`, `homepage`, `keywords`, `categories` to Cargo.toml for crates.io
 
 ### Fixed
 

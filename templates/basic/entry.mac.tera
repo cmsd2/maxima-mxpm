@@ -1,0 +1,8 @@
+/* {{ name }} — TODO: describe this package
+ *
+ * Usage:
+ *   load("{{ name }}");
+ *   {{ name }}_hello();
+ */
+
+{{ name }}_hello() := print("{{ name }} is loaded!")$

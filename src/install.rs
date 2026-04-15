@@ -49,6 +49,10 @@ pub async fn install_package(
         crate::index::Source::Tarball { url, .. } => {
             eprintln!("Downloading {url}...");
         }
+        crate::index::Source::Local { .. } => {
+            // Local sources are handled by install_local_package
+            unreachable!("install_package should not be called with a Local source");
+        }
     }
     let download_result = crate::source::download_and_extract(&entry.source, &staging_pkg).await?;
 
@@ -106,7 +110,81 @@ fn resolve_source(original: &Source, result: &DownloadResult) -> Source {
             hash: result.hash.clone(),
             hash_algorithm: result.hash_algorithm.clone(),
         },
+        Source::Local { .. } => original.clone(),
     }
+}
+
+/// Install a package from a local directory.
+///
+/// In copy mode, the source directory is copied to `~/.maxima/<name>/`.
+/// In editable mode, a symlink is created from `~/.maxima/<name>/` to the source directory.
+pub fn install_local_package(
+    name: &str,
+    source_path: &Path,
+    editable: bool,
+    config: &Config,
+) -> Result<InstallMetadata, MxpmError> {
+    let abs_source = source_path
+        .canonicalize()
+        .map_err(MxpmError::Io)?;
+
+    // Read manifest to get version
+    let manifest_path = abs_source.join("manifest.toml");
+    if !manifest_path.exists() {
+        return Err(MxpmError::ManifestNotFound {
+            path: abs_source.display().to_string(),
+        });
+    }
+    let manifest_contents = std::fs::read_to_string(&manifest_path).map_err(MxpmError::Io)?;
+    let m = manifest::parse_manifest(&manifest_contents)
+        .map_err(|e| MxpmError::Io(std::io::Error::other(e)))?;
+    let version = Some(m.package.version);
+
+    let userdir = crate::paths::maxima_userdir(config)?;
+    let package_dir = userdir.join(name);
+
+    // Check if already installed
+    if package_dir.exists() {
+        return Err(MxpmError::AlreadyInstalled {
+            name: name.to_string(),
+        });
+    }
+
+    std::fs::create_dir_all(&userdir).map_err(MxpmError::Io)?;
+
+    let source = Source::Local {
+        path: abs_source.display().to_string(),
+        editable,
+    };
+
+    if editable {
+        // Create symlink
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&abs_source, &package_dir).map_err(MxpmError::Io)?;
+        #[cfg(windows)]
+        std::os::windows::fs::symlink_dir(&abs_source, &package_dir).map_err(MxpmError::Io)?;
+
+        eprintln!("Linked {} -> {}", package_dir.display(), abs_source.display());
+    } else {
+        // Copy
+        eprintln!("Copying to {}...", package_dir.display());
+        crate::source::copy_dir_recursive(&abs_source, &package_dir)?;
+    }
+
+    let metadata = InstallMetadata {
+        name: name.to_string(),
+        version,
+        installed_at: chrono::Utc::now().to_rfc3339(),
+        source,
+        registry: "local".to_string(),
+    };
+    let metadata_json = serde_json::to_string_pretty(&metadata)
+        .map_err(|e| MxpmError::Io(std::io::Error::other(e)))?;
+    // For editable, this writes into the source dir (via the symlink).
+    // For copy, this writes into the copied dir.
+    std::fs::write(package_dir.join(".mxpm.json"), metadata_json).map_err(MxpmError::Io)?;
+
+    Ok(metadata)
 }
 
 /// Read install metadata from an installed package.
@@ -145,6 +223,10 @@ pub fn list_installed(config: &Config) -> Result<Vec<InstallMetadata>, MxpmError
 }
 
 /// Remove an installed package.
+///
+/// For editable (symlinked) packages: removes the symlink and cleans up
+/// `.mxpm.json` from the source directory. For regular packages: removes
+/// the entire package directory.
 pub fn remove_package(name: &str, config: &Config) -> Result<(), MxpmError> {
     let package_dir = crate::paths::package_dir(config, name)?;
     let metadata_path = package_dir.join(".mxpm.json");
@@ -155,7 +237,20 @@ pub fn remove_package(name: &str, config: &Config) -> Result<(), MxpmError> {
         });
     }
 
-    std::fs::remove_dir_all(&package_dir).map_err(MxpmError::Io)?;
+    // Check if this is an editable install (symlink)
+    let is_symlink = package_dir.symlink_metadata()
+        .map(|m| m.file_type().is_symlink())
+        .unwrap_or(false);
+
+    if is_symlink {
+        // Remove .mxpm.json from the source directory (the symlink target)
+        let _ = std::fs::remove_file(&metadata_path);
+        // Remove the symlink itself
+        std::fs::remove_file(&package_dir).map_err(MxpmError::Io)?;
+    } else {
+        std::fs::remove_dir_all(&package_dir).map_err(MxpmError::Io)?;
+    }
+
     Ok(())
 }
 

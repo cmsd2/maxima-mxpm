@@ -60,6 +60,12 @@ pub enum MxpmError {
     #[error("unsafe path in archive: {path}")]
     UnsafePath { path: String },
 
+    #[error("invalid package name: {0}")]
+    InvalidPackageName(String),
+
+    #[error("manifest.toml not found in {path}")]
+    ManifestNotFound { path: String },
+
     #[error("{0}")]
     Io(#[from] std::io::Error),
 }

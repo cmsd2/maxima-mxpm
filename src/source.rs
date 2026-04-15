@@ -35,6 +35,9 @@ pub async fn download_and_extract(
             git_ref,
             subdir,
         } => clone_git(url, git_ref, subdir.as_deref(), dest_dir),
+        Source::Local { .. } => Err(MxpmError::Io(std::io::Error::other(
+            "local sources are handled by install_local_package, not download_and_extract",
+        ))),
     }
 }
 
@@ -206,7 +209,7 @@ fn clone_git(
 }
 
 /// Recursively copy a directory, skipping `.git`.
-fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), MxpmError> {
+pub fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), MxpmError> {
     std::fs::create_dir_all(dst).map_err(MxpmError::Extraction)?;
 
     for entry in std::fs::read_dir(src).map_err(MxpmError::Extraction)? {
