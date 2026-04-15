@@ -4,6 +4,11 @@ version = "0.1.0"
 edition = "2024"
 description = "Maxima Package Manager"
 license = "MIT OR Apache-2.0"
+repository = "https://github.com/cmsd2/maxima-mxpm"
+homepage = "https://github.com/cmsd2/maxima-mxpm"
+keywords = ["maxima", "package-manager", "computer-algebra", "cas", "mathematics"]
+categories = ["command-line-utilities", "mathematics"]
+exclude = ["docs/", ".claude/", ".github/"]
 
 [[bin]]
 name = "mxpm"
@@ -36,7 +41,7 @@ tar = "0.4"
 git2 = "0.20"
 
 # Vendor OpenSSL for cross-compilation in CI
-openssl = { version = "0.10", features = ["vendored"] }
+openssl = { version = "0.10", features = ["vendored"], optional = true }
 
 # Temp directories (used for git clone staging)
 tempfile = "3"
@@ -55,6 +60,9 @@ dirs = "6"
 sha2 = "0.11.0"
 hex = "0.4.3"
 indicatif = "0.18.4"
+
+[features]
+vendored-openssl = ["dep:openssl"]
 
 [dev-dependencies]
 assert_cmd = "2"
