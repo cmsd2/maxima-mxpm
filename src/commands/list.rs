@@ -1,5 +1,3 @@
-use comfy_table::{ContentArrangement, Table};
-
 use crate::config::Config;
 use crate::errors::MxpmError;
 use crate::install;
@@ -16,9 +14,12 @@ pub fn run(format: OutputFormat, config: &Config) -> Result<(), MxpmError> {
                 return Ok(());
             }
 
-            let mut table = Table::new();
-            table.set_content_arrangement(ContentArrangement::Dynamic);
-            table.set_header(vec!["NAME", "VERSION", "INSTALLED"]);
+            let name_w = packages.iter().map(|p| p.name.len()).max().unwrap_or(0);
+            let ver_w = packages
+                .iter()
+                .map(|p| p.version.as_deref().unwrap_or("-").len())
+                .max()
+                .unwrap_or(0);
 
             for pkg in &packages {
                 let version = pkg.version.as_deref().unwrap_or("-");
@@ -27,10 +28,8 @@ pub fn run(format: OutputFormat, config: &Config) -> Result<(), MxpmError> {
                     .split('T')
                     .next()
                     .unwrap_or(&pkg.installed_at);
-                table.add_row(vec![&pkg.name, version, date]);
+                println!("{:<name_w$}  {:<ver_w$}  {date}", pkg.name, version,);
             }
-
-            println!("{table}");
         }
     }
 

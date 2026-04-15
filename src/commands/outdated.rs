@@ -1,4 +1,3 @@
-use comfy_table::{ContentArrangement, Table};
 use serde::Serialize;
 
 use crate::config::Config;
@@ -41,6 +40,7 @@ pub async fn find_outdated(config: &Config) -> Result<Vec<OutdatedPackage>, Mxpm
         }
     }
 
+    outdated.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(outdated)
 }
 
@@ -55,17 +55,13 @@ pub async fn run(format: OutputFormat, config: &Config) -> Result<(), MxpmError>
                 return Ok(());
             }
 
-            let mut table = Table::new();
-            table.set_content_arrangement(ContentArrangement::Dynamic);
-            table.set_header(vec!["NAME", "INSTALLED", "AVAILABLE"]);
+            let name_w = outdated.iter().map(|p| p.name.len()).max().unwrap_or(0);
 
             for pkg in &outdated {
                 let installed = short_ref(pkg.installed_ref.as_deref());
                 let available = short_ref(pkg.registry_ref.as_deref());
-                table.add_row(vec![&pkg.name, &installed, &available]);
+                println!("{:<name_w$}  {} -> {}", pkg.name, installed, available);
             }
-
-            println!("{table}");
         }
     }
 

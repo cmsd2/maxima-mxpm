@@ -1,4 +1,3 @@
-use comfy_table::{ContentArrangement, Table};
 use serde::Serialize;
 
 use crate::config::Config;
@@ -41,15 +40,15 @@ pub async fn run(query: &str, format: OutputFormat, config: &Config) -> Result<(
                 return Ok(());
             }
 
-            let mut table = Table::new();
-            table.set_content_arrangement(ContentArrangement::Dynamic);
-            table.set_header(vec!["NAME", "DESCRIPTION"]);
+            let name_w = results
+                .iter()
+                .map(|(n, _, _, _)| n.len())
+                .max()
+                .unwrap_or(0);
 
             for (name, entry, _registry, _score) in &results {
-                table.add_row(vec![*name, entry.description.as_str()]);
+                println!("{:<name_w$}  {}", name, entry.description);
             }
-
-            println!("{table}");
         }
     }
 

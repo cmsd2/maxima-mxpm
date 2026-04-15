@@ -51,8 +51,7 @@ anyhow = "1"
 # Platform-appropriate directories
 dirs = "6"
 
-# Terminal output
-comfy-table = "7"
+# Hashing
 sha2 = "0.11.0"
 hex = "0.4.3"
 indicatif = "0.18.4"
