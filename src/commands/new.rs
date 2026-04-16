@@ -147,6 +147,8 @@ fn generate_from_templates(
     let mut tera = Tera::default();
     let mut context = Context::new();
     context.insert("name", name);
+    // Maxima identifier-safe version: hyphens → underscores
+    context.insert("mac_name", &name.replace('-', "_"));
 
     let mut created = Vec::new();
     for (filename_tpl, content_tpl) in templates {
@@ -250,9 +252,16 @@ mod tests {
 
         let entry = fs::read_to_string(target.join("test-pkg.mac")).unwrap();
         assert!(entry.contains("load(\"test-pkg-index.lisp\")$"));
+        // Hyphens replaced with underscores in Maxima identifiers
+        assert!(entry.contains("test_pkg_hello()"));
+        assert!(!entry.contains("test-pkg_hello"));
+
+        let rtest = fs::read_to_string(target.join("rtest_test-pkg.mac")).unwrap();
+        assert!(rtest.contains("test_pkg_hello()"));
 
         let doc = fs::read_to_string(target.join("doc/test-pkg.md")).unwrap();
         assert!(doc.contains("# Package test-pkg"));
+        assert!(doc.contains("test_pkg_hello"));
     }
 
     #[test]

@@ -12,6 +12,6 @@ load("{{ name }}");
 
 ## Definitions for {{ name }}
 
-### Function: {{ name }}_hello ()
+### Function: {{ mac_name }}_hello ()
 
 TODO: describe this function.

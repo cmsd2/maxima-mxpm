@@ -5,5 +5,5 @@
 true;
 
 /* test the demo function */
-{{ name }}_hello();
+{{ mac_name }}_hello();
 "{{ name }} is loaded!";

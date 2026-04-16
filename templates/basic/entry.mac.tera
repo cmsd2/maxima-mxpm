@@ -2,10 +2,10 @@
  *
  * Usage:
  *   load("{{ name }}");
- *   {{ name }}_hello();
+ *   {{ mac_name }}_hello();
  */
 
 /* Uncomment after running 'mxpm doc build' to enable ? and ?? help lookup */
 /* load("{{ name }}-index.lisp")$ */
 
-{{ name }}_hello() := print("{{ name }} is loaded!")$
+{{ mac_name }}_hello() := print("{{ name }} is loaded!")$
