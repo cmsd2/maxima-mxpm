@@ -280,6 +280,132 @@ to the IDE beyond what the LSP can infer from open files. This creates a
 natural incentive for authors to write documentation using the scaffolded
 conventions and run `mxpm doc build`.
 
+## Proposal: Core Maxima docs as a doc-index package
+
+### Problem
+
+The VS Code extension currently embeds Maxima's core documentation in two
+compiled-in data sources inside `aximar-core`:
+
+- **`catalog.json`** (~2500 functions) — short descriptions, signatures,
+  categories, and minimal examples. Used for completions, hover, and search.
+- **`docs.json`** (~2700 entries) — full markdown documentation with prose,
+  examples (input + output), and cross-references. Used for full docs display.
+
+These overlap significantly and diverge in format. The full docs (`docs.json`)
+reference ~244 PNG images via relative paths (`figures/plotting6.png`) that
+exist in `aximar/public/figures/` (8.7 MB total). Since these images are not
+embedded in the binary, they are broken in contexts like the VS Code docs
+webview or MCP tool responses.
+
+This creates several problems:
+
+1. **Broken images** — 97 docs entries reference figures that can't be resolved
+   at runtime in the extension.
+2. **Binary bloat** — embedding 2700 markdown docs in the Rust binary adds
+   unnecessary compile-time and binary size.
+3. **Stale docs** — updating documentation requires rebuilding aximar-core.
+   Users can't get doc updates independently of tool updates.
+4. **Dual data sources** — catalog.json and docs.json contain overlapping
+   information (descriptions, examples) in different formats, leading to
+   confusing duplication in the UI.
+
+### Solution: `maxima-core-docs` package
+
+Create a doc-index package that ships Maxima's core function documentation
+through the existing `~/.maxima/` package infrastructure:
+
+```
+~/.maxima/maxima-core-docs/
+  doc/
+    maxima-core-docs-doc-index.json   # all 2500+ symbols
+    figures/
+      plotting2.png
+      plotting3.png
+      ...
+```
+
+This package would:
+
+1. **Use the existing doc-index format** — the `<pkg>-doc-index.json` format
+   already supports everything needed: signatures, summaries, body_md,
+   body_html (with images inlined as data URIs or resolvable from the package
+   directory), examples, see_also, and sections.
+
+2. **Be installable via mxpm** — `mxpm install maxima-core-docs`. Could also
+   be auto-installed by the VS Code extension on first activation.
+
+3. **Be consumed by the existing LSP infrastructure** — the LSP already watches
+   `~/.maxima/*/doc/*-doc-index.json` and loads symbols at startup. No new code
+   paths needed — core docs would flow through the same pipeline as third-party
+   package docs.
+
+4. **Include images** — either as files alongside the doc-index (resolved via
+   a `figures_dir` or `base_path` field) or inlined as data URIs in `body_html`.
+   The file-based approach keeps the doc-index JSON small; the data URI approach
+   is self-contained.
+
+5. **Be independently updatable** — doc improvements ship as a package update
+   (`mxpm upgrade maxima-core-docs`), not a binary rebuild.
+
+### What changes in aximar-core
+
+Once the core docs package exists:
+
+- **`docs.json` removed** — no longer embedded. The LSP gets full docs from the
+  doc-index in `~/.maxima/` like any other package.
+- **`catalog.json` simplified** — could be reduced to just names, signatures,
+  and categories (the structured data needed for completions). Or removed
+  entirely if the doc-index provides equivalent search and completion support.
+- **Fallback behavior** — if `maxima-core-docs` is not installed, the LSP
+  shows a message suggesting installation. Or a minimal built-in catalog
+  (names + signatures only) could remain as a lightweight fallback.
+
+### What changes in the LSP / extension
+
+- **Image resolution** — the doc webview needs to resolve relative image paths
+  from the package directory. The doc-index format could add a `base_path` or
+  `figures_dir` field, or the LSP could infer it from the doc-index file
+  location. The webview would use `webview.asWebviewUri()` to serve local files.
+- **Search** — with the doc-index providing `summary` and `body_md`, the LSP's
+  BM25 search over doc-index entries (already implemented) handles core function
+  search the same way it handles third-party packages.
+- **Unified data path** — all documentation (core + third-party) flows through
+  `DocIndexStore`, eliminating the current split between `Catalog`/`Docs` and
+  `DocIndexStore`.
+
+### Generation pipeline
+
+The `maxima-core-docs` package could be generated from:
+
+1. **Maxima's `.texi` source** — the canonical source for Maxima's built-in
+   documentation. Use `mxpm doc build` with Texinfo input to generate the
+   doc-index, extracting per-symbol docs from `@deffn`/`@defvr` blocks.
+2. **The existing `docs.json`** — as an interim step, convert the current
+   embedded markdown docs into doc-index format. This avoids needing the full
+   Texinfo pipeline immediately.
+
+The images in `public/figures/` would be included in the package. For
+`body_html`, they'd be inlined as data URIs (following the existing doc-index
+spec). For `body_md`, they'd remain as relative paths resolvable from the
+package directory.
+
+### Open questions
+
+- **Auto-install**: Should the extension automatically install `maxima-core-docs`
+  if not present? Or prompt the user? The `binaryManager` already handles
+  tool downloads — a similar flow could handle the docs package.
+- **Size**: With ~244 PNGs (8.7 MB), the package is larger than typical mxpm
+  packages. Data URI inlining in `body_html` would make the JSON file very
+  large. File-based image resolution is probably better.
+- **Versioning**: Should the docs package version track Maxima versions? Core
+  function docs are relatively stable across Maxima releases, but the package
+  could track the Maxima version it was generated from.
+- **Transition period**: During the transition, the LSP could support both
+  paths — embedded catalog as fallback, doc-index as primary when available.
+
+---
+
 ## Recommendations
 
 **Priority 1**: LSP consumption of doc indexes (gap #1). Scan

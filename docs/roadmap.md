@@ -357,6 +357,41 @@ steps.
 
 ---
 
+## Phase 10: Core Maxima docs as a doc-index package
+
+**Goal:** Move Maxima's built-in function documentation out of the compiled
+aximar-core binary and into a standalone mxpm package, unifying the data path
+for core and third-party docs.
+**Delivers:** `maxima-core-docs` package with all ~2500 built-in function docs
+and ~244 figures, consumable through the same `~/.maxima/` doc-index
+infrastructure used by third-party packages.
+**Depends on:** Phase 7 (doc-index format exists), LSP doc-index consumption
+(already implemented).
+
+See [ide-integration.md § Proposal: Core Maxima docs as a doc-index package](ide-integration.md#proposal-core-maxima-docs-as-a-doc-index-package)
+for full details.
+
+### Why
+
+- Fixes broken images in the VS Code docs webview (97 entries reference PNGs
+  that aren't accessible at runtime)
+- Eliminates dual overlapping data sources in aximar-core (`catalog.json` +
+  `docs.json`)
+- Makes docs independently updatable via `mxpm upgrade`
+- Unifies the code path — all docs (core + packages) flow through `DocIndexStore`
+
+### Work
+
+1. Generate `maxima-core-docs-doc-index.json` from existing `docs.json` or
+   Maxima `.texi` source
+2. Package the 244 figures alongside the doc-index
+3. Add image resolution support to the LSP/webview (resolve relative paths
+   from the package directory via `webview.asWebviewUri()`)
+4. Remove `docs.json` from aximar-core (keep a minimal catalog for fallback)
+5. Auto-install or prompt for `maxima-core-docs` from the extension
+
+---
+
 ## Summary
 
 | Phase | Deliverable | Status |
@@ -371,6 +406,7 @@ steps.
 | 7 | Documentation integration | **Done** |
 | 8 | Static catalog website | Not started |
 | 9 | Maxima-side integration | Not started |
+| 10 | Core Maxima docs as doc-index package | Not started |
 
 ### What to do next
 
