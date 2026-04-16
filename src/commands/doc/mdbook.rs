@@ -50,6 +50,36 @@ pub(super) fn regenerate_mdbook_src(
         regenerate_mdbook_from_headings(&md_content, stem, &src_dir)?;
     }
 
+    // Sync figures/ directory into book/src/ so image references resolve
+    let md_dir = md_path.parent().unwrap_or(Path::new("."));
+    let figures_src = md_dir.join("figures");
+    let figures_dst = src_dir.join("figures");
+    if figures_src.is_dir() {
+        // Remove stale symlink or directory
+        if figures_dst.is_symlink() || figures_dst.exists() {
+            if figures_dst.is_symlink() || !figures_dst.is_dir() {
+                fs::remove_file(&figures_dst).ok();
+            } else {
+                fs::remove_dir_all(&figures_dst).ok();
+            }
+        }
+        #[cfg(unix)]
+        {
+            let abs_src = figures_src.canonicalize()?;
+            std::os::unix::fs::symlink(&abs_src, &figures_dst)?;
+        }
+        #[cfg(not(unix))]
+        {
+            // Copy figures directory on non-unix platforms
+            fs::create_dir_all(&figures_dst)?;
+            for entry in fs::read_dir(&figures_src)?.flatten() {
+                if entry.file_type().map_or(false, |t| t.is_file()) {
+                    fs::copy(entry.path(), figures_dst.join(entry.file_name()))?;
+                }
+            }
+        }
+    }
+
     eprintln!("Wrote mdBook source to {}", book_dir.display());
     Ok(book_dir)
 }
