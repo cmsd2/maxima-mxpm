@@ -162,6 +162,9 @@ Texinfo `@deffn` definitions, making them available via Maxima's `?` and `??` he
 
 Use `mxpm doc serve` for a live preview with hot reload while writing docs.
 
+See the [Markdown Authoring Guide](docs/markdown-authoring.md) for documentation
+conventions that work across all output formats.
+
 ### External tools
 
 | Tool | Required for |

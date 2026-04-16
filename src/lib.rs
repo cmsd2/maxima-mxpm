@@ -1,5 +1,6 @@
 pub mod commands;
 pub mod config;
+pub mod doc_index;
 pub mod errors;
 pub mod index;
 pub mod info_index;

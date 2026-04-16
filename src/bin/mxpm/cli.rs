@@ -277,7 +277,7 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
                 xml,
                 mdbook,
             } => {
-                commands::doc::run_watch(file.as_deref(), output.as_deref(), xml, mdbook)?;
+                commands::doc::watch::run_watch(file.as_deref(), output.as_deref(), xml, mdbook)?;
             }
             DocCommand::Serve {
                 file,
@@ -285,7 +285,7 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
                 hostname,
                 open,
             } => {
-                commands::doc::run_serve(file.as_deref(), port, &hostname, open)?;
+                commands::doc::watch::run_serve(file.as_deref(), port, &hostname, open)?;
             }
             DocCommand::Index {
                 file,
