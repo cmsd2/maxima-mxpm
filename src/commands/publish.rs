@@ -296,7 +296,7 @@ pub fn run(
     })?;
     packages.insert(pkg.name.clone(), entry_value);
 
-    // Write back with 2-space indent, preserving insertion order
+    // serde_json::Map is backed by BTreeMap, so keys are sorted at every level
     let json = serde_json::to_string_pretty(&index).map_err(|e| MxpmError::PublishFailed {
         message: format!("failed to serialize index.json: {e}"),
     })?;
@@ -420,5 +420,55 @@ mod tests {
             normalise_remote_url("https://github.com/user/repo/"),
             "https://github.com/user/repo.git"
         );
+    }
+
+    #[test]
+    fn index_roundtrip_sorts_keys() {
+        // Simulate an index.json with unsorted package keys and unsorted fields
+        let input = r#"{
+  "version": 1,
+  "packages": {
+    "zebra": {
+      "source": {"type": "git", "url": "https://example.com/z.git", "ref": "aaaa"},
+      "repository": "https://example.com/z",
+      "description": "Z package"
+    },
+    "alpha": {
+      "repository": "https://example.com/a",
+      "description": "A package",
+      "source": {"ref": "bbbb", "type": "git", "url": "https://example.com/a.git"}
+    }
+  }
+}"#;
+
+        let index: serde_json::Value = serde_json::from_str(input).unwrap();
+        let output = serde_json::to_string_pretty(&index).unwrap();
+
+        // Top-level keys sorted: "packages" before "version"
+        let packages_pos = output.find("\"packages\"").unwrap();
+        let version_pos = output.find("\"version\"").unwrap();
+        assert!(packages_pos < version_pos, "top-level keys should be sorted");
+
+        // Package names sorted: "alpha" before "zebra"
+        let alpha_pos = output.find("\"alpha\"").unwrap();
+        let zebra_pos = output.find("\"zebra\"").unwrap();
+        assert!(alpha_pos < zebra_pos, "package names should be sorted");
+
+        // Fields within a package sorted: "description" before "repository" before "source"
+        // Find positions within the alpha entry
+        let alpha_section = &output[alpha_pos..];
+        let desc_pos = alpha_section.find("\"description\"").unwrap();
+        let repo_pos = alpha_section.find("\"repository\"").unwrap();
+        let source_pos = alpha_section.find("\"source\"").unwrap();
+        assert!(desc_pos < repo_pos, "description before repository");
+        assert!(repo_pos < source_pos, "repository before source");
+
+        // Source fields sorted: "ref" before "type" before "url"
+        let source_section = &alpha_section[source_pos..];
+        let ref_pos = source_section.find("\"ref\"").unwrap();
+        let type_pos = source_section.find("\"type\"").unwrap();
+        let url_pos = source_section.find("\"url\"").unwrap();
+        assert!(ref_pos < type_pos, "ref before type");
+        assert!(type_pos < url_pos, "type before url");
     }
 }
