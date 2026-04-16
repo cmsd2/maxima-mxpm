@@ -12,6 +12,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+## [0.6.2] - 2026-04-16
+
+### Added
+
+- Doc index: `subsections` field on `SectionEntry` for nested section hierarchy (omitted from JSON when empty)
+- Doc index: `section` field on `SymbolEntry` linking each symbol to its containing `##` section
+- Automatic parent section detection: empty-body sections followed by another section become parents with nested subsections
+- `<image>` element handler in XML-to-markdown converter for proper figure rendering in core docs
+
+### Changed
+
+### Fixed
+
 ## [0.6.1] - 2026-04-16
 
 ### Added
