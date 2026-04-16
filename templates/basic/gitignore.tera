@@ -1,7 +1,8 @@
 *~
 *.fas
 *.o
+*.ERR
 .mxpm.json
 doc/book/
 doc/*.texi
-doc/*.info
+doc/*.expanded.md

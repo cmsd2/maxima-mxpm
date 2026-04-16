@@ -12,6 +12,80 @@ use crate::errors::MxpmError;
 use crate::info_index;
 use crate::manifest;
 
+/// An include directive found in a markdown source file.
+#[derive(Debug, Clone)]
+struct IncludeEntry {
+    /// The resolved path to the included file.
+    path: PathBuf,
+}
+
+/// Expand `<!-- include: path -->` directives in a markdown file.
+///
+/// Returns the expanded content with all includes inlined.
+/// Paths are resolved relative to the source file's directory.
+fn expand_includes(source_path: &Path) -> Result<String, MxpmError> {
+    let content = fs::read_to_string(source_path)?;
+    let base_dir = source_path.parent().unwrap_or(Path::new("."));
+    let include_re = Regex::new(r"^<!--\s*include:\s*(\S+)\s*-->$").unwrap();
+
+    let mut result = String::new();
+    for line in content.lines() {
+        if let Some(caps) = include_re.captures(line) {
+            let include_path = base_dir.join(&caps[1]);
+            if !include_path.exists() {
+                return Err(MxpmError::MakeinfoFailed {
+                    message: format!(
+                        "included file not found: {} (from {})",
+                        include_path.display(),
+                        source_path.display()
+                    ),
+                });
+            }
+            let included = fs::read_to_string(&include_path)?;
+            result.push_str(&included);
+            if !included.ends_with('\n') {
+                result.push('\n');
+            }
+        } else {
+            result.push_str(line);
+            result.push('\n');
+        }
+    }
+    Ok(result)
+}
+
+/// Parse include directives from a markdown file without expanding them.
+///
+/// Returns a list of included file paths, in order.
+fn parse_includes(source_path: &Path) -> Result<Vec<IncludeEntry>, MxpmError> {
+    let content = fs::read_to_string(source_path)?;
+    let base_dir = source_path.parent().unwrap_or(Path::new("."));
+    let include_re = Regex::new(r"^<!--\s*include:\s*(\S+)\s*-->$").unwrap();
+
+    let mut entries = Vec::new();
+    for line in content.lines() {
+        if let Some(caps) = include_re.captures(line) {
+            entries.push(IncludeEntry {
+                path: base_dir.join(&caps[1]),
+            });
+        }
+    }
+    Ok(entries)
+}
+
+/// Collect all paths that should be watched: the source file plus any included files.
+fn collect_watch_paths(source_path: &Path) -> Vec<PathBuf> {
+    let mut paths = vec![source_path.to_path_buf()];
+    if let Ok(includes) = parse_includes(source_path) {
+        for entry in includes {
+            if entry.path.exists() {
+                paths.push(entry.path);
+            }
+        }
+    }
+    paths
+}
+
 /// Resolved documentation source information.
 struct DocSource {
     file: String,
@@ -151,13 +225,31 @@ pub fn run_build(
 
     check_staleness(path, out_dir, stem);
 
-    // If Markdown, convert to .texi first via Pandoc.
+    // If Markdown, expand includes and convert to .texi via Pandoc.
     // Place the .texi next to the .md source (not in the output dir).
     let texi_path = if is_markdown {
         let texi_dir = path.parent().unwrap_or(Path::new(".")).canonicalize()?;
         let texi_dest = texi_dir.join(format!("{}.texi", stem));
+
+        // Expand <!-- include: ... --> directives into a single file for pandoc
+        let includes = parse_includes(path)?;
+        let pandoc_input = if includes.is_empty() {
+            file.to_string()
+        } else {
+            let expanded = expand_includes(path)?;
+            let expanded_path = texi_dir.join(format!("{}.expanded.md", stem));
+            fs::write(&expanded_path, &expanded)?;
+            eprintln!(
+                "Expanded {} include{} into {}",
+                includes.len(),
+                if includes.len() == 1 { "" } else { "s" },
+                expanded_path.display()
+            );
+            expanded_path.to_string_lossy().to_string()
+        };
+
         eprintln!("Converting Markdown to Texinfo via Pandoc...");
-        invoke_pandoc(file, &texi_dest)?;
+        invoke_pandoc(&pandoc_input, &texi_dest)?;
         eprintln!("Wrote {}", texi_dest.display());
 
         // Post-process to add @deffn/@defvr blocks from our heading conventions
@@ -212,7 +304,7 @@ pub fn run_build(
         if is_markdown {
             // When manifest-driven, put book next to the source file (doc/), not package root
             let mdbook_dir = path.parent().unwrap_or(Path::new(".")).canonicalize()?;
-            generate_mdbook(file, stem, &mdbook_dir)?;
+            generate_mdbook(path, stem, &mdbook_dir)?;
         } else {
             // From .texi, generate XML first then convert
             let xml_path = invoke_makeinfo_xml(&texi_path, out_dir)?;
@@ -300,16 +392,18 @@ pub fn run_watch(
         mdbook,
     )?;
 
-    let watch_path = Path::new(&source.file).canonicalize()?;
+    let source_path = Path::new(&source.file).canonicalize()?;
+    let watch_paths = collect_watch_paths(&source_path);
     eprintln!(
-        "Watching {} for changes... (Ctrl-C to stop)",
-        watch_path.display()
+        "Watching {} file{} for changes... (Ctrl-C to stop)",
+        watch_paths.len(),
+        if watch_paths.len() == 1 { "" } else { "s" }
     );
 
     let out_dir_str = source.out_dir.to_string_lossy().to_string();
     let file_str = source.file.clone();
 
-    watch_and_rebuild(&watch_path, move || {
+    watch_and_rebuild(&watch_paths, move || {
         eprintln!("Change detected, rebuilding...");
         match run_build(Some(&file_str), Some(&out_dir_str), xml, mdbook) {
             Ok(()) => eprintln!("Rebuild complete."),
@@ -391,16 +485,18 @@ pub fn run_serve(
 
     eprintln!("Serving at http://{}:{}", hostname, port);
 
-    let watch_path = Path::new(&source.file).canonicalize()?;
+    let source_path = Path::new(&source.file).canonicalize()?;
+    let watch_paths = collect_watch_paths(&source_path);
     eprintln!(
-        "Watching {} for changes... (Ctrl-C to stop)",
-        watch_path.display()
+        "Watching {} file{} for changes... (Ctrl-C to stop)",
+        watch_paths.len(),
+        if watch_paths.len() == 1 { "" } else { "s" }
     );
 
-    let md_path = source.file.clone();
+    let md_path = PathBuf::from(&source.file);
     let stem = source.stem.clone();
 
-    let result = watch_and_rebuild(&watch_path, move || {
+    let result = watch_and_rebuild(&watch_paths, move || {
         eprintln!("Change detected, updating mdBook source...");
         match regenerate_mdbook_src(&md_path, &stem, &source_dir) {
             Ok(_) => eprintln!("Updated. Browser should reload."),
@@ -415,10 +511,10 @@ pub fn run_serve(
     result
 }
 
-/// Watch a file for changes and call `on_change` for each detected modification.
+/// Watch one or more files for changes and call `on_change` for each detected modification.
 ///
 /// Blocks until Ctrl-C is pressed.
-fn watch_and_rebuild(watch_path: &Path, on_change: impl Fn()) -> Result<(), MxpmError> {
+fn watch_and_rebuild(watch_paths: &[PathBuf], on_change: impl Fn()) -> Result<(), MxpmError> {
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
     ctrlc::set_handler(move || {
@@ -434,12 +530,14 @@ fn watch_and_rebuild(watch_path: &Path, on_change: impl Fn()) -> Result<(), Mxpm
             message: format!("failed to create file watcher: {}", e),
         })?;
 
-    debouncer
-        .watcher()
-        .watch(watch_path, notify::RecursiveMode::NonRecursive)
-        .map_err(|e| MxpmError::MakeinfoFailed {
-            message: format!("failed to watch {}: {}", watch_path.display(), e),
-        })?;
+    for watch_path in watch_paths {
+        debouncer
+            .watcher()
+            .watch(watch_path, notify::RecursiveMode::NonRecursive)
+            .map_err(|e| MxpmError::MakeinfoFailed {
+                message: format!("failed to watch {}: {}", watch_path.display(), e),
+            })?;
+    }
 
     while running.load(Ordering::SeqCst) {
         match rx.recv_timeout(Duration::from_millis(200)) {
@@ -604,6 +702,7 @@ fn invoke_pandoc(md_path: &str, texi_dest: &Path) -> Result<(), MxpmError> {
     let result = Command::new("pandoc")
         .arg(md_path)
         .arg("-s")
+        .arg("--wrap=none")
         .arg("-o")
         .arg(texi_dest)
         .output()
@@ -768,7 +867,7 @@ fn postprocess_texi(texi_path: &Path, stem: &str) -> Result<(), MxpmError> {
 }
 
 /// Generate mdBook source from a Markdown file and build HTML.
-fn generate_mdbook(md_path: &str, stem: &str, out_dir: &Path) -> Result<(), MxpmError> {
+fn generate_mdbook(md_path: &Path, stem: &str, out_dir: &Path) -> Result<(), MxpmError> {
     let book_dir = regenerate_mdbook_src(md_path, stem, out_dir)?;
 
     // Run mdbook build if available
@@ -779,9 +878,13 @@ fn generate_mdbook(md_path: &str, stem: &str, out_dir: &Path) -> Result<(), Mxpm
 
 /// Regenerate mdBook source files from a Markdown file.
 ///
+/// If the source file contains `<!-- include: ... -->` directives, each included
+/// file becomes a separate mdBook chapter. Otherwise, falls back to splitting by
+/// `##` headings.
+///
 /// Creates/updates `book/src/` with split sections and SUMMARY.md.
 /// Returns the book directory path. Does NOT run `mdbook build`.
-fn regenerate_mdbook_src(md_path: &str, stem: &str, out_dir: &Path) -> Result<PathBuf, MxpmError> {
+fn regenerate_mdbook_src(md_path: &Path, stem: &str, out_dir: &Path) -> Result<PathBuf, MxpmError> {
     let book_dir = out_dir.join("book");
     let src_dir = book_dir.join("src");
     fs::create_dir_all(&src_dir)?;
@@ -792,6 +895,196 @@ fn regenerate_mdbook_src(md_path: &str, stem: &str, out_dir: &Path) -> Result<Pa
     let book_toml = format!("[book]\ntitle = \"{stem}\"\nlanguage = \"en\"\n\n[output.html]\n");
     fs::write(book_dir.join("book.toml"), book_toml)?;
 
+    let includes = parse_includes(md_path)?;
+
+    if !includes.is_empty() {
+        // Include-based mode: inline content becomes intro, each include is a chapter
+        regenerate_mdbook_from_includes(md_path, &md_content, &includes, stem, &src_dir)?;
+    } else {
+        // Legacy mode: split by ## headings
+        regenerate_mdbook_from_headings(&md_content, stem, &src_dir)?;
+    }
+
+    eprintln!("Wrote mdBook source to {}", book_dir.display());
+    Ok(book_dir)
+}
+
+/// A section parsed from the main doc file for mdBook generation.
+struct MdBookSection {
+    title: String,
+    content: String,
+    includes: Vec<PathBuf>,
+}
+
+/// Generate mdBook chapters from include directives.
+///
+/// Parses the source file into sections (split by `##` headings). Each section
+/// becomes a top-level mdBook chapter. Includes within a section become nested
+/// sub-chapters under that section's chapter.
+fn regenerate_mdbook_from_includes(
+    source_path: &Path,
+    source_content: &str,
+    _includes: &[IncludeEntry],
+    _stem: &str,
+    src_dir: &Path,
+) -> Result<(), MxpmError> {
+    let include_re = Regex::new(r"^<!--\s*include:\s*(\S+)\s*-->$").unwrap();
+    let base_dir = source_path.parent().unwrap_or(Path::new("."));
+
+    // Parse into sections split by ## headings
+    let mut sections: Vec<MdBookSection> = Vec::new();
+    let mut current = MdBookSection {
+        title: String::new(),
+        content: String::new(),
+        includes: Vec::new(),
+    };
+
+    for line in source_content.lines() {
+        if line.starts_with("# ") && !line.starts_with("## ") {
+            // Skip top-level title
+            continue;
+        }
+        if let Some(title) = line.strip_prefix("## ") {
+            // Flush current section if it has any content or includes
+            if !current.title.is_empty()
+                || !current.content.trim().is_empty()
+                || !current.includes.is_empty()
+            {
+                sections.push(current);
+            }
+            current = MdBookSection {
+                title: title.trim().to_string(),
+                content: String::new(),
+                includes: Vec::new(),
+            };
+        } else if let Some(caps) = include_re.captures(line) {
+            current.includes.push(base_dir.join(&caps[1]));
+        } else {
+            current.content.push_str(line);
+            current.content.push('\n');
+        }
+    }
+    // Flush last section
+    if !current.title.is_empty()
+        || !current.content.trim().is_empty()
+        || !current.includes.is_empty()
+    {
+        sections.push(current);
+    }
+
+    // Generate SUMMARY.md and chapter files
+    let mut summary = String::from("# Summary\n\n");
+
+    for section in &sections {
+        let slug = slugify(&section.title);
+        let filename = if slug.is_empty() {
+            "index.md".to_string()
+        } else {
+            format!("{}.md", slug)
+        };
+
+        // Write section chapter file
+        let trimmed = section.content.trim();
+        let chapter_content = if trimmed.is_empty() {
+            format!("# {}\n", section.title)
+        } else {
+            format!("# {}\n\n{}\n", section.title, trimmed)
+        };
+        fs::write(src_dir.join(&filename), chapter_content)?;
+
+        let label = if section.title.is_empty() {
+            "Introduction".to_string()
+        } else {
+            section.title.clone()
+        };
+        summary.push_str(&format!("- [{}]({})\n", label, filename));
+
+        // Write included files as nested sub-chapters
+        for include_path in &section.includes {
+            if !include_path.exists() {
+                return Err(MxpmError::MakeinfoFailed {
+                    message: format!(
+                        "included file not found: {} (from {})",
+                        include_path.display(),
+                        source_path.display()
+                    ),
+                });
+            }
+            let content = fs::read_to_string(include_path)?;
+            let rendered = render_mdbook_content(&content);
+
+            let title = extract_chapter_title(&content).unwrap_or_else(|| {
+                include_path
+                    .file_stem()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string()
+            });
+
+            let inc_filename = include_path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
+
+            let page_content = promote_first_heading(&rendered);
+            fs::write(src_dir.join(&inc_filename), page_content)?;
+            summary.push_str(&format!("  - [{}]({})\n", title, inc_filename));
+        }
+    }
+
+    fs::write(src_dir.join("SUMMARY.md"), summary)?;
+    Ok(())
+}
+
+/// Extract a chapter title from the first heading in markdown content.
+///
+/// Recognizes `### Function: name (args)` → `name`, `## title` → `title`.
+fn extract_chapter_title(content: &str) -> Option<String> {
+    for line in content.lines() {
+        if let Some(rest) = line.strip_prefix("### Function: ") {
+            // Extract just the function name
+            let name = rest.split_whitespace().next()?;
+            return Some(name.to_string());
+        }
+        if let Some(rest) = line.strip_prefix("### Variable: ") {
+            return Some(rest.trim().to_string());
+        }
+        if let Some(title) = line.strip_prefix("## ") {
+            return Some(title.trim().to_string());
+        }
+        if let Some(title) = line.strip_prefix("# ") {
+            return Some(title.trim().to_string());
+        }
+    }
+    None
+}
+
+/// Promote the first `###` heading to `#` for use as the mdBook page heading.
+fn promote_first_heading(content: &str) -> String {
+    let mut promoted = false;
+    content
+        .lines()
+        .map(|line| {
+            if !promoted && line.starts_with("### ") {
+                promoted = true;
+                // render_mdbook_line already transforms ### Function: headings,
+                // so we may see "---\n### `name` (...) — Function". Just promote ### to #.
+                line.replacen("### ", "# ", 1)
+            } else {
+                line.to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Legacy mdBook generation: split by ## headings.
+fn regenerate_mdbook_from_headings(
+    md_content: &str,
+    stem: &str,
+    src_dir: &Path,
+) -> Result<(), MxpmError> {
     // Split by ## headings into separate pages.
     // The # heading becomes the book title (already in book.toml).
     let mut sections: Vec<(String, String)> = Vec::new();
@@ -824,7 +1117,7 @@ fn regenerate_mdbook_src(md_path: &str, stem: &str, out_dir: &Path) -> Result<Pa
 
     if sections.is_empty() {
         // No ## headings at all — use the whole file as one page
-        let rendered = render_mdbook_content(&md_content);
+        let rendered = render_mdbook_content(md_content);
         fs::write(src_dir.join("chapter-1.md"), rendered)?;
         summary.push_str(&format!("- [{}](chapter-1.md)\n", stem));
     } else {
@@ -846,9 +1139,7 @@ fn regenerate_mdbook_src(md_path: &str, stem: &str, out_dir: &Path) -> Result<Pa
     }
 
     fs::write(src_dir.join("SUMMARY.md"), summary)?;
-    eprintln!("Wrote mdBook source to {}", book_dir.display());
-
-    Ok(book_dir)
+    Ok(())
 }
 
 /// Render a single line for mdBook output.
