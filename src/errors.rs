@@ -90,6 +90,18 @@ pub enum MxpmError {
     #[error("test failed for {package}: {message}")]
     TestFailed { package: String, message: String },
 
+    #[error("not a git repository; run from a package directory with a git remote")]
+    NotGitRepo,
+
+    #[error("git remote 'origin' not found")]
+    NoGitRemote,
+
+    #[error("gh CLI not found; install from https://cli.github.com/")]
+    GhNotFound,
+
+    #[error("publish failed: {message}")]
+    PublishFailed { message: String },
+
     #[error("{0}")]
     Io(#[from] std::io::Error),
 }

@@ -5,6 +5,7 @@ pub mod install;
 pub mod list;
 pub mod new;
 pub mod outdated;
+pub mod publish;
 pub mod remove;
 pub mod search;
 pub mod test;

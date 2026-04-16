@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- `mxpm publish` command to submit packages to the community index via GitHub PR
+- Supports `--tag` to publish a specific git tag and `--ref` for an explicit commit hash
+- Forks the index repo, updates `index.json`, and opens a PR automatically using `gh`
+
 ### Changed
 
 ### Fixed

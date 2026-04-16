@@ -94,6 +94,16 @@ pub enum Command {
         action: IndexAction,
     },
 
+    /// Publish package to the community index
+    Publish {
+        /// Git tag to publish (resolves to commit hash)
+        #[arg(long)]
+        tag: Option<String>,
+        /// Explicit commit hash to publish (default: HEAD)
+        #[arg(long, name = "ref")]
+        git_ref: Option<String>,
+    },
+
     /// Documentation tools
     Doc {
         #[command(subcommand)]
@@ -227,6 +237,9 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
         }
         Command::Upgrade { package } => {
             commands::upgrade::run(package.as_deref(), cli.yes, format, &config).await?;
+        }
+        Command::Publish { tag, git_ref } => {
+            commands::publish::run(tag.as_deref(), git_ref.as_deref(), cli.yes, format, &config)?;
         }
         Command::Test { package } => {
             let success = commands::test::run(package.as_deref(), format, &config)?;

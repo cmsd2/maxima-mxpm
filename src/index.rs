@@ -13,9 +13,13 @@ pub struct PackageEntry {
     pub description: String,
     pub repository: String,
     pub source: Source,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub homepage: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub keywords: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub license: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub authors: Option<Vec<String>>,
 }
 
@@ -35,6 +39,7 @@ pub enum Source {
         url: String,
         #[serde(rename = "ref")]
         git_ref: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
         subdir: Option<String>,
     },
     Local {

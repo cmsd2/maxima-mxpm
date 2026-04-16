@@ -45,6 +45,8 @@ mxpm upgrade <package>        # Upgrade a specific package
 mxpm remove <package>         # Remove a package
 mxpm test <package>           # Run package tests via Maxima
 mxpm test                     # Test all installed packages
+mxpm publish                  # Publish current HEAD to the index
+mxpm publish --tag v1.0.0     # Publish a specific tag
 mxpm index update             # Force-refresh the package index
 
 # Documentation
