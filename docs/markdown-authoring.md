@@ -123,9 +123,7 @@ Use standard markdown image syntax with relative paths:
 ![Phase portrait](phase-portrait.png)
 ```
 
-Place image files alongside the markdown source. In the doc index JSON, images are automatically inlined as data URLs so the output is self-contained. In mdBook, relative paths work as-is. For Texinfo, Pandoc handles the conversion.
-
-Images larger than 500 KB will produce a warning but are still inlined.
+Place image files alongside the markdown source. In the doc index JSON, image paths stay as relative references — GUI consumers resolve them relative to the JSON file location. In mdBook, relative paths work as-is. For Texinfo, Pandoc handles the conversion.
 
 ## Multi-file documentation
 

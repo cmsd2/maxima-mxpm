@@ -130,7 +130,6 @@ mod tests {
             } else {
                 summary.to_string()
             },
-            body_html: String::new(),
             examples: (0..examples)
                 .map(|_| ExampleEntry {
                     input: "1+1;".to_string(),
@@ -139,6 +138,7 @@ mod tests {
                 })
                 .collect(),
             see_also: see_also.into_iter().map(String::from).collect(),
+            category: None,
         }
     }
 

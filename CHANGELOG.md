@@ -10,6 +10,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Doc index format: removed `body_html` field from symbols and sections; consumers render `body_md` themselves
+- Images in doc index stay as relative paths (no more data URI inlining)
+
 ### Fixed
 
 ## [0.5.0] - 2026-04-16
