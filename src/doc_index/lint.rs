@@ -139,6 +139,7 @@ mod tests {
                 .collect(),
             see_also: see_also.into_iter().map(String::from).collect(),
             category: None,
+            section: None,
         }
     }
 

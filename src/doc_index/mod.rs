@@ -41,6 +41,8 @@ pub struct SymbolEntry {
     pub see_also: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub category: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub section: Option<String>,
 }
 
 /// A structured example extracted from documentation.
@@ -57,6 +59,8 @@ pub struct ExampleEntry {
 pub struct SectionEntry {
     pub title: String,
     pub body_md: String,
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub subsections: Vec<SectionEntry>,
 }
 
 // ---------------------------------------------------------------------------
@@ -75,13 +79,13 @@ pub fn parse_markdown(
     let blocks = parser::split_into_blocks(content);
 
     let mut symbols = BTreeMap::new();
-    let mut sections = Vec::new();
+    let mut current_section: Option<String> = None;
 
-    for block in blocks {
+    // Collect symbols with their section associations
+    for block in &blocks {
         match block {
-            parser::ParsedBlock::Section { title, body } => {
-                let body_md = body.trim().to_string();
-                sections.push(SectionEntry { title, body_md });
+            parser::ParsedBlock::Section { title, .. } => {
+                current_section = Some(title.clone());
             }
             parser::ParsedBlock::Symbol { kind, body } => {
                 let body_md = body.trim().to_string();
@@ -89,20 +93,24 @@ pub fn parse_markdown(
                 let examples = parser::extract_examples(&body_md);
                 let see_also = parser::extract_see_also(&body_md);
                 symbols.insert(
-                    kind.name,
+                    kind.name.clone(),
                     SymbolEntry {
-                        symbol_type: kind.symbol_type,
-                        signature: kind.signature,
+                        symbol_type: kind.symbol_type.clone(),
+                        signature: kind.signature.clone(),
                         summary,
                         body_md,
                         examples,
                         see_also,
                         category: None,
+                        section: current_section.clone(),
                     },
                 );
             }
         }
     }
+
+    // Build hierarchical section tree
+    let sections = build_section_hierarchy(&blocks);
 
     Ok(DocIndex {
         version: 1,
@@ -111,6 +119,56 @@ pub fn parse_markdown(
         symbols,
         sections,
     })
+}
+
+/// Detect parent/child section relationships and build a hierarchical tree.
+///
+/// A section is a "parent" if it has an empty body and is immediately followed
+/// by another section in the block stream. This captures the pattern used by
+/// core docs where `## Category` headings contain `<!-- include: -->` directives
+/// that expand into `## Subcategory` sections with symbols underneath.
+fn build_section_hierarchy(blocks: &[parser::ParsedBlock]) -> Vec<SectionEntry> {
+    let mut result: Vec<SectionEntry> = Vec::new();
+    let mut current_parent: Option<SectionEntry> = None;
+
+    for (i, block) in blocks.iter().enumerate() {
+        let parser::ParsedBlock::Section { title, body } = block else {
+            continue;
+        };
+        let body_md = body.trim().to_string();
+        let next_is_section =
+            matches!(blocks.get(i + 1), Some(parser::ParsedBlock::Section { .. }));
+        let is_parent = body_md.is_empty() && next_is_section;
+
+        if is_parent {
+            if let Some(parent) = current_parent.take() {
+                result.push(parent);
+            }
+            current_parent = Some(SectionEntry {
+                title: title.clone(),
+                body_md,
+                subsections: Vec::new(),
+            });
+        } else if let Some(ref mut parent) = current_parent {
+            parent.subsections.push(SectionEntry {
+                title: title.clone(),
+                body_md,
+                subsections: Vec::new(),
+            });
+        } else {
+            result.push(SectionEntry {
+                title: title.clone(),
+                body_md,
+                subsections: Vec::new(),
+            });
+        }
+    }
+
+    if let Some(parent) = current_parent.take() {
+        result.push(parent);
+    }
+
+    result
 }
 
 #[cfg(test)]
@@ -200,6 +258,9 @@ mod tests {
         assert_eq!(idx.sections.len(), 2);
         assert_eq!(idx.sections[0].title, "Introduction to testpkg");
         assert_eq!(idx.sections[1].title, "Definitions for testpkg");
+        // No subsections for simple packages
+        assert!(idx.sections[0].subsections.is_empty());
+        assert!(idx.sections[1].subsections.is_empty());
 
         // Symbols
         assert_eq!(idx.symbols.len(), 2);
@@ -208,10 +269,12 @@ mod tests {
         assert_eq!(hello.symbol_type, "Function");
         assert_eq!(hello.signature, "hello(name)");
         assert_eq!(hello.summary, "Returns a greeting for name.");
+        assert_eq!(hello.section.as_deref(), Some("Definitions for testpkg"));
 
         let greeting = &idx.symbols["greeting"];
         assert_eq!(greeting.symbol_type, "Variable");
         assert_eq!(greeting.signature, "greeting");
+        assert_eq!(greeting.section.as_deref(), Some("Definitions for testpkg"));
     }
 
     #[test]
@@ -238,6 +301,7 @@ mod tests {
         assert_eq!(solve.examples[0].input, "rich_solve(x^2 - 1, x);");
         assert!(solve.examples[0].output.contains("[x = -1, x = 1]"));
         assert_eq!(solve.see_also, vec!["rich_opts", "rich_verbose"]);
+        assert_eq!(solve.section.as_deref(), Some("Definitions for richpkg"));
 
         // rich_opts: function with one example
         let opts = &idx.symbols["rich_opts"];
@@ -253,5 +317,68 @@ mod tests {
             "When true, prints extra diagnostics during solving."
         );
         assert_eq!(verbose.see_also, vec!["rich_solve"]);
+    }
+
+    #[test]
+    fn hierarchical_sections() {
+        // Simulates expanded core-docs structure:
+        // ## Category (empty body, followed by section)
+        // ## Subcategory1 (has symbols)
+        // ## Subcategory2 (has symbols)
+        let md = "\
+# Core Docs
+
+## Introduction
+
+Some intro text.
+
+## Calculus
+
+## Differentiation
+
+### Function: diff (expr, var)
+
+Differentiates expr with respect to var.
+
+## Integration
+
+### Function: integrate (expr, var)
+
+Integrates expr with respect to var.
+
+## Programming
+
+## Flow Control
+
+### Function: if (cond, then, else)
+
+Conditional expression.
+";
+        let idx = parse_markdown(md, "core", "doc/core.md").unwrap();
+
+        // Top-level sections: Introduction, Calculus (parent), Programming (parent)
+        assert_eq!(idx.sections.len(), 3);
+        assert_eq!(idx.sections[0].title, "Introduction");
+        assert!(idx.sections[0].subsections.is_empty());
+
+        assert_eq!(idx.sections[1].title, "Calculus");
+        assert_eq!(idx.sections[1].subsections.len(), 2);
+        assert_eq!(idx.sections[1].subsections[0].title, "Differentiation");
+        assert_eq!(idx.sections[1].subsections[1].title, "Integration");
+
+        assert_eq!(idx.sections[2].title, "Programming");
+        assert_eq!(idx.sections[2].subsections.len(), 1);
+        assert_eq!(idx.sections[2].subsections[0].title, "Flow Control");
+
+        // Symbols have section associations
+        assert_eq!(
+            idx.symbols["diff"].section.as_deref(),
+            Some("Differentiation")
+        );
+        assert_eq!(
+            idx.symbols["integrate"].section.as_deref(),
+            Some("Integration")
+        );
+        assert_eq!(idx.symbols["if"].section.as_deref(), Some("Flow Control"));
     }
 }
