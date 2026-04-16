@@ -73,7 +73,7 @@ pub(super) fn regenerate_mdbook_src(
             // Copy figures directory on non-unix platforms
             fs::create_dir_all(&figures_dst)?;
             for entry in fs::read_dir(&figures_src)?.flatten() {
-                if entry.file_type().map_or(false, |t| t.is_file()) {
+                if entry.file_type().is_ok_and(|t| t.is_file()) {
                     fs::copy(entry.path(), figures_dst.join(entry.file_name()))?;
                 }
             }
