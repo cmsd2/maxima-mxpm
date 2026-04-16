@@ -31,7 +31,8 @@ cargo install --locked --path .
 ## Usage
 
 ```
-mxpm new <name>               # Scaffold a new package
+mxpm new <name>               # Scaffold a new package in a new directory
+mxpm init                     # Initialize a package in the current directory
 mxpm search <query>           # Search for packages
 mxpm info <package>           # Show package details
 mxpm install <package>        # Install a package from the registry

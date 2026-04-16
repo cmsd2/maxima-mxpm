@@ -54,7 +54,7 @@ struct NewResult {
 }
 
 /// Template definitions: (filename_template, content_template)
-const BASIC_TEMPLATES: &[(&str, &str)] = &[
+pub const BASIC_TEMPLATES: &[(&str, &str)] = &[
     (
         "manifest.toml",
         include_str!("../../templates/basic/manifest.toml.tera"),
@@ -147,8 +147,11 @@ fn generate_from_templates(
     let mut tera = Tera::default();
     let mut context = Context::new();
     context.insert("name", name);
+    context.insert("entry", &format!("{name}.mac"));
     // Maxima identifier-safe version: hyphens → underscores
     context.insert("mac_name", &name.replace('-', "_"));
+    context.insert("include_doc", &true);
+    context.insert("include_test", &true);
 
     let mut created = Vec::new();
     for (filename_tpl, content_tpl) in templates {

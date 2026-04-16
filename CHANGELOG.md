@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- `mxpm init` command to initialize a package in an existing directory
+- Auto-detects `.mac` entry point; prompts when multiple files found
+- Interactive scaffolding: optionally generates .gitignore, README, docs, tests, and CI workflows
+
 ### Changed
 
 ### Fixed

@@ -1,6 +1,7 @@
 pub mod doc;
 pub mod index;
 pub mod info;
+pub mod init;
 pub mod install;
 pub mod list;
 pub mod new;

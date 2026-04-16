@@ -67,6 +67,13 @@ pub enum Command {
         template: String,
     },
 
+    /// Initialize a package in the current directory
+    Init {
+        /// Package name (default: directory name)
+        #[arg(long)]
+        name: Option<String>,
+    },
+
     /// Show detailed package information
     Info {
         /// Package name
@@ -219,6 +226,9 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
             template,
         } => {
             commands::new::run(&name, path.as_deref(), &template, format)?;
+        }
+        Command::Init { name } => {
+            commands::init::run(name.as_deref(), cli.yes, format, &config)?;
         }
         Command::List => {
             commands::list::run(format, &config)?;
