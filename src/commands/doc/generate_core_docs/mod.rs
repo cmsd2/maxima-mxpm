@@ -26,6 +26,7 @@ struct ExtractedSymbol {
     _examples: Vec<(String, String)>,
     see_also: Vec<String>,
     category: String,
+    chapter: String,
 }
 
 pub fn run(maxima_src: &str, output_dir: Option<&str>, no_build: bool) -> Result<(), MxpmError> {
@@ -58,14 +59,19 @@ pub fn run(maxima_src: &str, output_dir: Option<&str>, no_build: bool) -> Result
     let symbols = xml_parser::parse_xml(&xml_content)?;
     eprintln!("Extracted {} symbols", symbols.len());
 
-    // Step 4: Group by category and emit markdown
+    // Step 4: Group by category + subcategory and emit markdown
     let doc_dir = out.join("doc");
     fs::create_dir_all(&doc_dir)?;
-    let categories = emit::emit_markdown_files(&symbols, &doc_dir)?;
-    eprintln!("Wrote {} category files", categories.len());
+    let category_groups = emit::emit_markdown_files(&symbols, &doc_dir)?;
+    let file_count: usize = category_groups.iter().map(|(_, files)| files.len()).sum();
+    eprintln!(
+        "Wrote {} files across {} categories",
+        file_count,
+        category_groups.len()
+    );
 
     // Step 5: Generate main doc file with includes
-    emit::emit_main_doc(&categories, &doc_dir)?;
+    emit::emit_main_doc(&category_groups, &doc_dir)?;
 
     // Step 6: Copy figures
     let figures_src = doc_info.join("figures");

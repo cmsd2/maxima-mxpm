@@ -244,78 +244,133 @@ fn contains_any(value: &str, patterns: &[&str]) -> bool {
     patterns.iter().any(|p| value.contains(p))
 }
 
-/// Group symbols by category and write one markdown file per category.
+/// Group symbols by (category, chapter) and write one markdown file per subcategory.
 ///
-/// Returns the list of generated filenames in sorted order.
+/// Returns a list of `(category_name, vec_of_filenames)` in sorted order.
 pub(super) fn emit_markdown_files(
     symbols: &[ExtractedSymbol],
     doc_dir: &Path,
-) -> Result<Vec<String>, MxpmError> {
-    // Group by category
-    let mut by_category: BTreeMap<String, Vec<&ExtractedSymbol>> = BTreeMap::new();
+) -> Result<Vec<(String, Vec<String>)>, MxpmError> {
+    // Remove stale .md files from previous runs (but not subdirectories)
+    if doc_dir.exists() {
+        for entry in fs::read_dir(doc_dir)?.flatten() {
+            let path = entry.path();
+            if path.extension().is_some_and(|e| e == "md") && path.is_file() {
+                fs::remove_file(&path)?;
+            }
+        }
+    }
+
+    // Group by category, then by chapter within each category
+    let mut by_cat_chap: BTreeMap<String, BTreeMap<String, Vec<&ExtractedSymbol>>> =
+        BTreeMap::new();
     for sym in symbols {
-        by_category
+        by_cat_chap
             .entry(sym.category.clone())
+            .or_default()
+            .entry(sym.chapter.clone())
             .or_default()
             .push(sym);
     }
 
-    let mut category_files = Vec::new();
+    let mut category_groups: Vec<(String, Vec<String>)> = Vec::new();
 
-    for (category, syms) in &by_category {
-        let slug = category.to_lowercase().replace(' ', "");
-        let filename = format!("{slug}.md");
-        let mut content = format!("## {category}\n\n");
+    for (category, chapters) in &by_cat_chap {
+        let cat_slug = slugify(category);
+        let mut files = Vec::new();
 
-        for sym in syms {
-            // Heading
-            let heading_type = &sym.symbol_type;
-            let sig = sym
-                .signatures
-                .first()
-                .map(|s| s.as_str())
-                .unwrap_or(&sym.name);
-            if heading_type == "Function" {
-                // Extract args from signature for heading format
-                if let Some(paren) = sig.find('(') {
-                    let name = &sig[..paren];
-                    let args = &sig[paren..];
-                    // Remove outer parens for heading
-                    let inner = args
-                        .strip_prefix('(')
-                        .and_then(|s| s.strip_suffix(')'))
-                        .unwrap_or(args);
-                    content.push_str(&format!("### Function: {name} ({inner})\n\n"));
-                } else {
-                    content.push_str(&format!("### Function: {sig} ()\n\n"));
-                }
+        // If there's only one chapter and its cleaned name matches the category, emit a single file
+        let single_chapter = chapters.len() == 1
+            && chapters
+                .keys()
+                .next()
+                .is_some_and(|ch| ch.is_empty() || ch == category);
+
+        for (chapter, syms) in chapters {
+            let (filename, heading) = if single_chapter {
+                (format!("{cat_slug}.md"), category.clone())
             } else {
-                content.push_str(&format!("### Variable: {}\n\n", sym.name));
-            }
+                let chap_slug = slugify(chapter);
+                let heading = if chapter.is_empty() {
+                    category.clone()
+                } else {
+                    chapter.clone()
+                };
+                if chap_slug.is_empty() {
+                    (format!("{cat_slug}.md"), heading)
+                } else {
+                    let mut candidate = format!("{cat_slug}-{chap_slug}.md");
+                    // Deduplicate: if this filename was already used, append a counter
+                    if files.contains(&candidate) {
+                        let mut n = 2;
+                        loop {
+                            candidate = format!("{cat_slug}-{chap_slug}-{n}.md");
+                            if !files.contains(&candidate) {
+                                break;
+                            }
+                            n += 1;
+                        }
+                    }
+                    (candidate, heading)
+                }
+            };
 
-            // Body markdown
-            if !sym.body_md.is_empty() {
-                content.push_str(&sym.body_md);
-                content.push_str("\n\n");
-            }
+            let mut content = format!("## {heading}\n\n");
+            emit_symbols(&mut content, syms);
 
-            // See also
-            if !sym.see_also.is_empty() {
-                let refs: Vec<String> = sym.see_also.iter().map(|r| format!("`{r}`")).collect();
-                content.push_str(&format!("See also: {}.\n\n", refs.join(", ")));
-            }
+            fs::write(doc_dir.join(&filename), &content)?;
+            eprintln!("  {}: {} symbols", filename, syms.len());
+            files.push(filename);
         }
 
-        fs::write(doc_dir.join(&filename), &content)?;
-        eprintln!("  {}: {} symbols", filename, syms.len());
-        category_files.push(filename);
+        category_groups.push((category.clone(), files));
     }
 
-    Ok(category_files)
+    Ok(category_groups)
 }
 
-/// Generate the main doc file with `<!-- include: ... -->` directives.
-pub(super) fn emit_main_doc(category_files: &[String], doc_dir: &Path) -> Result<(), MxpmError> {
+/// Emit symbol headings, bodies, and see-also references into a markdown string.
+fn emit_symbols(content: &mut String, syms: &[&ExtractedSymbol]) {
+    for sym in syms {
+        let heading_type = &sym.symbol_type;
+        let sig = sym
+            .signatures
+            .first()
+            .map(|s| s.as_str())
+            .unwrap_or(&sym.name);
+        if heading_type == "Function" {
+            if let Some(paren) = sig.find('(') {
+                let name = &sig[..paren];
+                let args = &sig[paren..];
+                let inner = args
+                    .strip_prefix('(')
+                    .and_then(|s| s.strip_suffix(')'))
+                    .unwrap_or(args);
+                content.push_str(&format!("### Function: {name} ({inner})\n\n"));
+            } else {
+                content.push_str(&format!("### Function: {sig} ()\n\n"));
+            }
+        } else {
+            content.push_str(&format!("### Variable: {}\n\n", sym.name));
+        }
+
+        if !sym.body_md.is_empty() {
+            content.push_str(&sym.body_md);
+            content.push_str("\n\n");
+        }
+
+        if !sym.see_also.is_empty() {
+            let refs: Vec<String> = sym.see_also.iter().map(|r| format!("`{r}`")).collect();
+            content.push_str(&format!("See also: {}.\n\n", refs.join(", ")));
+        }
+    }
+}
+
+/// Generate the main doc file with `<!-- include: ... -->` directives grouped by category.
+pub(super) fn emit_main_doc(
+    category_groups: &[(String, Vec<String>)],
+    doc_dir: &Path,
+) -> Result<(), MxpmError> {
     let mut content = String::from("# Maxima Core Documentation\n\n");
     content.push_str("## Introduction\n\n");
     content.push_str(
@@ -323,12 +378,28 @@ pub(super) fn emit_main_doc(category_files: &[String], doc_dir: &Path) -> Result
          generated from the official Maxima Texinfo source.\n\n",
     );
 
-    for file in category_files {
-        content.push_str(&format!("<!-- include: {file} -->\n"));
+    for (category, files) in category_groups {
+        content.push_str(&format!("## {category}\n\n"));
+        for file in files {
+            content.push_str(&format!("<!-- include: {file} -->\n"));
+        }
+        content.push('\n');
     }
 
     fs::write(doc_dir.join("maxima-core-docs.md"), content)?;
     Ok(())
+}
+
+/// Slugify a string for use in filenames (lowercase, non-alphanumeric → hyphens).
+fn slugify(s: &str) -> String {
+    s.to_lowercase()
+        .chars()
+        .map(|c| if c.is_alphanumeric() { c } else { '-' })
+        .collect::<String>()
+        .split('-')
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join("-")
 }
 
 /// Generate `manifest.toml` and placeholder `.mac` for the package.

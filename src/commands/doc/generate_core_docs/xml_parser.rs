@@ -26,7 +26,7 @@ pub(super) fn parse_xml(xml: &str) -> Result<Vec<ExtractedSymbol>, MxpmError> {
 
     let mut symbols = Vec::new();
     let mut seen = HashSet::new();
-    collect_definitions(doc.root_element(), &mut symbols, &mut seen, "");
+    collect_definitions(doc.root_element(), &mut symbols, &mut seen, "", "");
     symbols.sort_by_key(|s| s.name.to_lowercase());
     Ok(symbols)
 }
@@ -36,45 +36,63 @@ fn collect_definitions(
     symbols: &mut Vec<ExtractedSymbol>,
     seen: &mut HashSet<String>,
     chapter_title: &str,
+    section_title: &str,
 ) {
     let mut current_chapter = chapter_title.to_string();
+    let mut current_section = section_title.to_string();
 
     for child in node.children() {
         if !child.is_element() {
             continue;
         }
         match child.tag_name().name() {
-            "chapter" | "section" | "unnumbered" | "appendix" => {
-                // Extract section title for category fallback
+            "chapter" | "unnumbered" | "appendix" => {
+                // Chapter-level element: update chapter title, reset section
                 if let Some(title) = child
                     .children()
                     .find(|c| c.is_element() && c.tag_name().name() == "sectiontitle")
                 {
                     current_chapter = collect_text(&title);
+                    current_section = String::new();
                 }
-                collect_definitions(child, symbols, seen, &current_chapter);
+                collect_definitions(child, symbols, seen, &current_chapter, "");
+            }
+            "section" => {
+                // Section-level element: update section title, keep chapter
+                if let Some(title) = child
+                    .children()
+                    .find(|c| c.is_element() && c.tag_name().name() == "sectiontitle")
+                {
+                    current_section = collect_text(&title);
+                }
+                collect_definitions(child, symbols, seen, &current_chapter, &current_section);
             }
             "deffn" | "defvr" => {
-                if let Some(sym) = parse_definition(&child, &current_chapter)
+                if let Some(sym) = parse_definition(&child, &current_chapter, &current_section)
                     && seen.insert(sym.name.clone())
                 {
                     symbols.push(sym);
                 }
             }
             _ => {
-                collect_definitions(child, symbols, seen, &current_chapter);
+                collect_definitions(child, symbols, seen, &current_chapter, &current_section);
             }
         }
     }
 }
 
-fn parse_definition(node: &roxmltree::Node, chapter_title: &str) -> Option<ExtractedSymbol> {
+fn parse_definition(
+    node: &roxmltree::Node,
+    chapter_title: &str,
+    section_title: &str,
+) -> Option<ExtractedSymbol> {
     let is_variable = node.tag_name().name() == "defvr";
     let symbol_type = if is_variable { "Variable" } else { "Function" };
 
     let name = extract_name(node)?;
     let signatures = extract_signatures(node, &name);
-    let category = extract_category(node, chapter_title);
+    let category = extract_category(node, chapter_title, section_title);
+    let chapter = clean_chapter_name(chapter_title);
 
     // Find <definitionitem> for body content
     let def_item = node
@@ -98,6 +116,7 @@ fn parse_definition(node: &roxmltree::Node, chapter_title: &str) -> Option<Extra
         _examples: examples,
         see_also,
         category,
+        chapter,
     })
 }
 
@@ -212,11 +231,29 @@ fn build_signature_from_term(term: &roxmltree::Node) -> Option<String> {
     }
 }
 
-fn extract_category(_node: &roxmltree::Node, chapter_title: &str) -> String {
+fn extract_category(_node: &roxmltree::Node, chapter_title: &str, section_title: &str) -> String {
     // <defcategory> in Maxima's XML contains the definition type ("Function",
     // "Variable", etc.) — not a topical category. So we always fall through
     // to the chapter/section title for topical classification.
+    //
+    // Prefer the section title (more specific), falling back to the chapter title.
+    if !section_title.is_empty() {
+        let mapped = map_category(section_title);
+        if mapped != "Other" {
+            return mapped;
+        }
+    }
     map_category(chapter_title)
+}
+
+/// Strip common prefixes from a Maxima chapter title to get a clean subcategory name.
+fn clean_chapter_name(raw: &str) -> String {
+    raw.strip_prefix("Functions and Variables for ")
+        .or_else(|| raw.strip_prefix("Introduction to "))
+        .or_else(|| raw.strip_prefix("Package "))
+        .or_else(|| raw.strip_prefix("Definitions for "))
+        .unwrap_or(raw)
+        .to_string()
 }
 
 fn extract_examples(node: &roxmltree::Node) -> Vec<(String, String)> {

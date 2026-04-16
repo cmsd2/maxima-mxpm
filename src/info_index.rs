@@ -526,7 +526,7 @@ fn scan_sections(data: &[u8], filename: &str, entries: &mut Vec<SectionEntry>) {
             let title = caps[2].to_string();
             sections.push((title, char_offset, 0));
         }
-        char_offset += line.len() + 1; // +1 for \n
+        char_offset += line.chars().count() + 1; // +1 for \n
     }
 
     // Measure length of each section: from its start until the next unit separator or EOF

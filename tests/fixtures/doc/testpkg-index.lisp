@@ -7,7 +7,7 @@
 ))
 (section-pairs '(
 ; CONTENT: (<NODE NAME> . (<FILENAME> <BYTE OFFSET> <LENGTH IN CHARACTERS>))
-("Definitions for testpkg" . ("testpkg.info" 836 214))
+("Definitions for testpkg" . ("testpkg.info" 832 218))
 ("Introduction to testpkg" . ("testpkg.info" 568 128))
 )))
 (load-info-hashtables (maxima::maxima-load-pathname-directory) deffn-defvr-pairs section-pairs))

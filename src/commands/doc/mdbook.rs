@@ -235,7 +235,7 @@ fn extract_chapter_title(content: &str) -> Option<String> {
     None
 }
 
-/// Promote the first `###` heading to `#` for use as the mdBook page heading.
+/// Promote the first `##` or `###` heading to `#` for use as the mdBook page heading.
 fn promote_first_heading(content: &str) -> String {
     let mut promoted = false;
     content
@@ -246,6 +246,9 @@ fn promote_first_heading(content: &str) -> String {
                 // render_mdbook_line already transforms ### Function: headings,
                 // so we may see "---\n### `name` (...) — Function". Just promote ### to #.
                 line.replacen("### ", "# ", 1)
+            } else if !promoted && line.starts_with("## ") {
+                promoted = true;
+                line.replacen("## ", "# ", 1)
             } else {
                 line.to_string()
             }
