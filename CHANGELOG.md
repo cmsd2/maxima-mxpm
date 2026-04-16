@@ -8,16 +8,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.3.0] - 2026-04-16
+
+### Added
+
 - `mxpm test [package]` command to run `rtest_*.mac` files through Maxima batch mode
 - Maxima binary detection via `$MAXIMA_BIN`, config, or `$PATH` lookup
 - Test file discovery from `[test]` section in `manifest.toml` or `rtest_*.mac` convention
 - `[test]` section support in `manifest.toml` parser
+- `<!-- include: path -->` directive support in doc source files for multi-file documentation
+- Include expansion: stitches multiple `.md` files into one before pandoc/makeinfo pipeline
+- mdBook nested chapters: included files become sub-chapters under their parent `##` section
+- File watcher monitors all included files, not just the main doc source
+- `mac_name` template variable (hyphens replaced with underscores) for valid Maxima identifiers
 
 ### Changed
 
 - Renamed `mxpm init` to `mxpm new`
-
-### Fixed
+- Pandoc invoked with `--wrap=none` to prevent long heading truncation
+- Template CI workflows trigger on both `main` and `master` branches
+- Template `.gitignore` updated: covers `.ERR` and `.expanded.md`, allows `.info` at root
 
 ## [0.2.0] - 2026-04-15
 
