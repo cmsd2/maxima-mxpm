@@ -19,7 +19,7 @@ Release a new version of the Maxima Package Manager CLI.
 3. Read `Cargo.toml` to get the current version.
 4. Confirm the new version is different from the current version.
 5. Check that the git tag `v<new-version>` does not already exist.
-6. Run `cargo clippy` and `cargo test` — abort if either fails.
+6. Run `cargo fmt --check`, `cargo clippy`, and `cargo test` — abort if any fails.
 
 If any check fails, report it and stop.
 
