@@ -13,10 +13,7 @@ use super::copy_dir;
 /// Copies the source to a working directory, processes `.texi.in` and
 /// `.texi.m4` templates, and patches `category-macros.texi` for XML-mode
 /// figure handling.
-pub(super) fn preprocess_texi(
-    doc_info: &Path,
-    work_dir: &Path,
-) -> Result<PathBuf, MxpmError> {
+pub(super) fn preprocess_texi(doc_info: &Path, work_dir: &Path) -> Result<PathBuf, MxpmError> {
     // Copy doc/info/ contents to working directory
     copy_dir(doc_info, work_dir)?;
 
@@ -56,12 +53,13 @@ pub(super) fn extract_version(configure_ac: &Path) -> Result<String, MxpmError> 
     for line in content.lines() {
         if line.starts_with("AC_INIT")
             && let Some(start) = line.find('[')
-                && let Some(mid) = line[start + 1..].find('[') {
-                    let rest = &line[start + 1 + mid + 1..];
-                    if let Some(end) = rest.find(']') {
-                        return Ok(rest[..end].to_string());
-                    }
-                }
+            && let Some(mid) = line[start + 1..].find('[')
+        {
+            let rest = &line[start + 1 + mid + 1..];
+            if let Some(end) = rest.find(']') {
+                return Ok(rest[..end].to_string());
+            }
+        }
     }
     Ok("5.47.0".to_string())
 }
@@ -71,14 +69,15 @@ fn process_texi_in_files(work_dir: &Path, version: &str) -> Result<(), MxpmError
         let entry = entry?;
         let path = entry.path();
         if let Some(name) = path.file_name().and_then(|n| n.to_str())
-            && name.ends_with(".texi.in") {
-                let content = fs::read_to_string(&path)?;
-                let output = content
-                    .replace("@manual_version@", version)
-                    .replace("@abs_srcdir@", &work_dir.to_string_lossy());
-                let out_name = name.strip_suffix(".in").unwrap();
-                fs::write(work_dir.join(out_name), output)?;
-            }
+            && name.ends_with(".texi.in")
+        {
+            let content = fs::read_to_string(&path)?;
+            let output = content
+                .replace("@manual_version@", version)
+                .replace("@abs_srcdir@", &work_dir.to_string_lossy());
+            let out_name = name.strip_suffix(".in").unwrap();
+            fs::write(work_dir.join(out_name), output)?;
+        }
     }
     Ok(())
 }
@@ -96,9 +95,10 @@ fn process_texi_m4_files(work_dir: &Path) -> Result<(), MxpmError> {
         let entry = entry?;
         let path = entry.path();
         if let Some(name) = path.file_name().and_then(|n| n.to_str())
-            && name.ends_with(".texi.m4") {
-                m4_files.push(path.clone());
-            }
+            && name.ends_with(".texi.m4")
+        {
+            m4_files.push(path.clone());
+        }
     }
 
     for m4_file in m4_files {
@@ -167,10 +167,7 @@ fn patch_category_macros(work_dir: &Path) -> Result<(), MxpmError> {
 }
 
 /// Run `makeinfo --xml` on the preprocessed Texinfo source.
-pub(super) fn run_makeinfo_xml(
-    texi_path: &Path,
-    work_dir: &Path,
-) -> Result<PathBuf, MxpmError> {
+pub(super) fn run_makeinfo_xml(texi_path: &Path, work_dir: &Path) -> Result<PathBuf, MxpmError> {
     let xml_path = work_dir.join("maxima.xml");
     let output = Command::new("makeinfo")
         .args(["--xml", "--no-warn"])

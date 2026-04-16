@@ -314,11 +314,7 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
                 output,
                 no_build,
             } => {
-                commands::doc::generate_core_docs::run(
-                    &maxima_src,
-                    output.as_deref(),
-                    no_build,
-                )?;
+                commands::doc::generate_core_docs::run(&maxima_src, output.as_deref(), no_build)?;
             }
         },
     }

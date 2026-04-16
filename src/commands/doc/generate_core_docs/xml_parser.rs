@@ -4,11 +4,11 @@ use std::collections::HashSet;
 
 use crate::errors::MxpmError;
 
+use super::ExtractedSymbol;
+use super::emit::map_category;
 use super::markdown::{
     collect_raw_text, collect_text, definition_body_to_markdown, replace_texinfo_entities,
 };
-use super::emit::map_category;
-use super::ExtractedSymbol;
 
 /// Parse makeinfo XML and extract all symbol definitions.
 pub(super) fn parse_xml(xml: &str) -> Result<Vec<ExtractedSymbol>, MxpmError> {
@@ -56,9 +56,10 @@ fn collect_definitions(
             }
             "deffn" | "defvr" => {
                 if let Some(sym) = parse_definition(&child, &current_chapter)
-                    && seen.insert(sym.name.clone()) {
-                        symbols.push(sym);
-                    }
+                    && seen.insert(sym.name.clone())
+                {
+                    symbols.push(sym);
+                }
             }
             _ => {
                 collect_definitions(child, symbols, seen, &current_chapter);
@@ -69,11 +70,7 @@ fn collect_definitions(
 
 fn parse_definition(node: &roxmltree::Node, chapter_title: &str) -> Option<ExtractedSymbol> {
     let is_variable = node.tag_name().name() == "defvr";
-    let symbol_type = if is_variable {
-        "Variable"
-    } else {
-        "Function"
-    };
+    let symbol_type = if is_variable { "Variable" } else { "Function" };
 
     let name = extract_name(node)?;
     let signatures = extract_signatures(node, &name);
@@ -140,10 +137,12 @@ fn extract_signatures(node: &roxmltree::Node, name: &str) -> Vec<String> {
 
     // Collect from <definitionterm>
     for child in node.children() {
-        if child.is_element() && child.tag_name().name() == "definitionterm"
-            && let Some(sig) = build_signature_from_term(&child) {
-                signatures.push(sig);
-            }
+        if child.is_element()
+            && child.tag_name().name() == "definitionterm"
+            && let Some(sig) = build_signature_from_term(&child)
+        {
+            signatures.push(sig);
+        }
     }
 
     // Also check <deffnx>/<defvrx> for alternative signatures
@@ -152,10 +151,12 @@ fn extract_signatures(node: &roxmltree::Node, name: &str) -> Vec<String> {
             match child.tag_name().name() {
                 "deffnx" | "defvrx" => {
                     for term in child.children() {
-                        if term.is_element() && term.tag_name().name() == "definitionterm"
-                            && let Some(sig) = build_signature_from_term(&term) {
-                                signatures.push(sig);
-                            }
+                        if term.is_element()
+                            && term.tag_name().name() == "definitionterm"
+                            && let Some(sig) = build_signature_from_term(&term)
+                        {
+                            signatures.push(sig);
+                        }
                     }
                 }
                 _ => {}
@@ -301,10 +302,11 @@ pub(super) fn parse_repl_examples(text: &str) -> Vec<(String, String)> {
 fn strip_repl_marker<'a>(line: &'a str, marker: &str) -> Option<&'a str> {
     // Match patterns like (%i1), (%i2), (%o1), etc.
     if let Some(pos) = line.find(&format!("({marker}"))
-        && let Some(end) = line[pos..].find(')') {
-            let rest = line[pos + end + 1..].trim();
-            return Some(rest);
-        }
+        && let Some(end) = line[pos..].find(')')
+    {
+        let rest = line[pos + end + 1..].trim();
+        return Some(rest);
+    }
     None
 }
 
@@ -318,10 +320,11 @@ fn decode_texinfo_label(label: &str) -> String {
             let hex: String = chars.by_ref().take(4).collect();
             if hex.len() == 4
                 && let Ok(code) = u32::from_str_radix(&hex, 16)
-                    && let Some(decoded) = char::from_u32(code) {
-                        result.push(decoded);
-                        continue;
-                    }
+                && let Some(decoded) = char::from_u32(code)
+            {
+                result.push(decoded);
+                continue;
+            }
             // Not a valid encoding — keep as-is
             result.push('_');
             result.push_str(&hex);

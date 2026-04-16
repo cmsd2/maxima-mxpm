@@ -7,11 +7,7 @@ pub(super) fn definition_body_to_markdown(node: &roxmltree::Node) -> String {
     out.trim().to_string()
 }
 
-pub(super) fn convert_children_to_md(
-    node: &roxmltree::Node,
-    out: &mut String,
-    list_depth: usize,
-) {
+pub(super) fn convert_children_to_md(node: &roxmltree::Node, out: &mut String, list_depth: usize) {
     for child in node.children() {
         if child.is_text() {
             if let Some(text) = child.text() {
@@ -319,12 +315,13 @@ pub(super) fn convert_raw_texinfo(text: &str, out: &mut String) {
 
     // Handle @math{...}
     if let Some(rest) = text.strip_prefix("@math{")
-        && let Some(content) = rest.strip_suffix('}') {
-            out.push('$');
-            out.push_str(content);
-            out.push('$');
-            return;
-        }
+        && let Some(content) = rest.strip_suffix('}')
+    {
+        out.push('$');
+        out.push_str(content);
+        out.push('$');
+        return;
+    }
 
     // Handle @displaymath
     if text.starts_with("@displaymath") {
@@ -342,15 +339,16 @@ pub(super) fn convert_raw_texinfo(text: &str, out: &mut String) {
 
     // Handle figure references: (Figure name) or (Figure name: desc)
     if let Some(fig) = text.strip_prefix("(Figure ")
-        && let Some(name) = fig.strip_suffix(')') {
-            let (file, desc) = if let Some((f, d)) = name.split_once(':') {
-                (f.trim(), d.trim())
-            } else {
-                (name.trim(), name.trim())
-            };
-            out.push_str(&format!("![{desc}](figures/{file}.png)"));
-            return;
-        }
+        && let Some(name) = fig.strip_suffix(')')
+    {
+        let (file, desc) = if let Some((f, d)) = name.split_once(':') {
+            (f.trim(), d.trim())
+        } else {
+            (name.trim(), name.trim())
+        };
+        out.push_str(&format!("![{desc}](figures/{file}.png)"));
+        return;
+    }
 
     // Otherwise strip remaining @command{content} patterns
     let cleaned = clean_texinfo_markup(text);
@@ -380,9 +378,10 @@ pub(super) fn collect_text(node: &roxmltree::Node) -> String {
     let mut text = String::new();
     for desc in node.descendants() {
         if desc.is_text()
-            && let Some(t) = desc.text() {
-                text.push_str(t);
-            }
+            && let Some(t) = desc.text()
+        {
+            text.push_str(t);
+        }
     }
     // Normalize whitespace
     let parts: Vec<&str> = text.split_whitespace().collect();
@@ -394,9 +393,10 @@ pub(super) fn collect_raw_text(node: &roxmltree::Node) -> String {
     let mut text = String::new();
     for desc in node.descendants() {
         if desc.is_text()
-            && let Some(t) = desc.text() {
-                text.push_str(t);
-            }
+            && let Some(t) = desc.text()
+        {
+            text.push_str(t);
+        }
     }
     text
 }

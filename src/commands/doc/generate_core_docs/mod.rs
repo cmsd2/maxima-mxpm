@@ -33,10 +33,7 @@ pub fn run(maxima_src: &str, output_dir: Option<&str>, no_build: bool) -> Result
     let doc_info = src.join("doc").join("info");
     if !doc_info.exists() {
         return Err(MxpmError::MakeinfoFailed {
-            message: format!(
-                "Maxima source directory not found: {}",
-                doc_info.display()
-            ),
+            message: format!("Maxima source directory not found: {}", doc_info.display()),
         });
     }
 
@@ -87,12 +84,7 @@ pub fn run(maxima_src: &str, output_dir: Option<&str>, no_build: bool) -> Result
     // Step 8: Optionally run mxpm doc build
     if !no_build {
         eprintln!("\nRunning doc build...");
-        super::run_build(
-            Some("doc/maxima-core-docs.md"),
-            None,
-            false,
-            false,
-        )?;
+        super::run_build(Some("doc/maxima-core-docs.md"), None, false, false)?;
     }
 
     Ok(())

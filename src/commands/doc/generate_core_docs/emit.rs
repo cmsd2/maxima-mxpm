@@ -6,8 +6,8 @@ use std::path::Path;
 
 use crate::errors::MxpmError;
 
-use super::preprocess::extract_version;
 use super::ExtractedSymbol;
+use super::preprocess::extract_version;
 
 /// Map a raw Maxima category string to one of 13 top-level categories.
 pub(super) fn map_category(raw: &str) -> String {
@@ -28,7 +28,13 @@ pub(super) fn map_category(raw: &str) -> String {
     // Topical categories — checked in order of specificity
     if contains_any(
         &lower,
-        &["linear algebra", "matri", "vector", "eigen", "linearalgebra"],
+        &[
+            "linear algebra",
+            "matri",
+            "vector",
+            "eigen",
+            "linearalgebra",
+        ],
     ) {
         return "LinearAlgebra".to_string();
     }
@@ -38,8 +44,15 @@ pub(super) fn map_category(raw: &str) -> String {
     if contains_any(
         &lower,
         &[
-            "calcul", "integr", "differenti", "ode", "laplace", "quadpack",
-            "romberg", "contrib_ode", "differential equation",
+            "calcul",
+            "integr",
+            "differenti",
+            "ode",
+            "laplace",
+            "quadpack",
+            "romberg",
+            "contrib_ode",
+            "differential equation",
         ],
     ) {
         return "Calculus".to_string();
@@ -55,14 +68,13 @@ pub(super) fn map_category(raw: &str) -> String {
     }
     if contains_any(
         &lower,
-        &["plot", "draw", "graph", "dynamics", "worldmap", "picture", "bode"],
+        &[
+            "plot", "draw", "graph", "dynamics", "worldmap", "picture", "bode",
+        ],
     ) {
         return "Plotting".to_string();
     }
-    if contains_any(
-        &lower,
-        &["number theory", "prime", "number", "divis"],
-    ) {
+    if contains_any(&lower, &["number theory", "prime", "number", "divis"]) {
         return "NumberTheory".to_string();
     }
     if contains_any(&lower, &["polynom", "grobner", "algebraic", "ratpow"]) {
@@ -71,8 +83,15 @@ pub(super) fn map_category(raw: &str) -> String {
     if contains_any(
         &lower,
         &[
-            "series", "taylor", "fourier", "power series", "limit",
-            "sum", "product", "zeilberger", "solve_rec",
+            "series",
+            "taylor",
+            "fourier",
+            "power series",
+            "limit",
+            "sum",
+            "product",
+            "zeilberger",
+            "solve_rec",
         ],
     ) {
         return "Series".to_string();
@@ -83,9 +102,16 @@ pub(super) fn map_category(raw: &str) -> String {
     if contains_any(
         &lower,
         &[
-            "elliptic", "special function", "gamma", "bessel",
-            "hypergeometric", "airy", "struve", "orthogonal poly",
-            "orthopoly", "math",
+            "elliptic",
+            "special function",
+            "gamma",
+            "bessel",
+            "hypergeometric",
+            "airy",
+            "struve",
+            "orthogonal poly",
+            "orthopoly",
+            "math",
         ],
     ) {
         return "SpecialFunctions".to_string();
@@ -93,9 +119,20 @@ pub(super) fn map_category(raw: &str) -> String {
     if contains_any(
         &lower,
         &[
-            "input", "output", "file", "display", "print", "read",
-            "string", "numericalio", "format", "fortran", "tex output",
-            "f90", "gentran", "alt-display",
+            "input",
+            "output",
+            "file",
+            "display",
+            "print",
+            "read",
+            "string",
+            "numericalio",
+            "format",
+            "fortran",
+            "tex output",
+            "f90",
+            "gentran",
+            "alt-display",
         ],
     ) {
         return "IO".to_string();
@@ -103,19 +140,37 @@ pub(super) fn map_category(raw: &str) -> String {
     if contains_any(
         &lower,
         &[
-            "tensor", "ctensor", "itensor", "atensor", "cartan",
-            "frame", "affine",
+            "tensor", "ctensor", "itensor", "atensor", "cartan", "frame", "affine",
         ],
     ) {
         return "Tensors".to_string();
     }
     if contains_any(
         &lower,
-        &["program", "flow", "function defin", "debug", "compile", "evaluation",
-          "macro", "operator", "expression", "data type", "structure",
-          "array", "list", "predicate", "propert", "database",
-          "command line", "runtime", "help", "constant",
-          "comment", "identifier", "reserved",
+        &[
+            "program",
+            "flow",
+            "function defin",
+            "debug",
+            "compile",
+            "evaluation",
+            "macro",
+            "operator",
+            "expression",
+            "data type",
+            "structure",
+            "array",
+            "list",
+            "predicate",
+            "propert",
+            "database",
+            "command line",
+            "runtime",
+            "help",
+            "constant",
+            "comment",
+            "identifier",
+            "reserved",
         ],
     ) {
         return "Programming".to_string();
@@ -125,15 +180,36 @@ pub(super) fn map_category(raw: &str) -> String {
     }
     if contains_any(
         &lower,
-        &["stat", "distrib", "random", "lsquare", "descriptive", "inference"],
+        &[
+            "stat",
+            "distrib",
+            "random",
+            "lsquare",
+            "descriptive",
+            "inference",
+        ],
     ) {
         return "Statistics".to_string();
     }
     if contains_any(
         &lower,
-        &["numer", "float", "fft", "lapack", "minpack", "lbfgs",
-          "mnewton", "simplex", "cobyla", "hompack", "interpol",
-          "rk_adaptive", "odepack", "colnew", "levin", "pslq",
+        &[
+            "numer",
+            "float",
+            "fft",
+            "lapack",
+            "minpack",
+            "lbfgs",
+            "mnewton",
+            "simplex",
+            "cobyla",
+            "hompack",
+            "interpol",
+            "rk_adaptive",
+            "odepack",
+            "colnew",
+            "levin",
+            "pslq",
         ],
     ) {
         return "Numerical".to_string();
@@ -141,10 +217,7 @@ pub(super) fn map_category(raw: &str) -> String {
     if contains_any(&lower, &["unit", "physical_constant", "ezunit"]) {
         return "Units".to_string();
     }
-    if contains_any(
-        &lower,
-        &["crypto", "finance", "misc", "share", "functs"],
-    ) {
+    if contains_any(&lower, &["crypto", "finance", "misc", "share", "functs"]) {
         return "Other".to_string();
     }
 
@@ -242,10 +315,7 @@ pub(super) fn emit_markdown_files(
 }
 
 /// Generate the main doc file with `<!-- include: ... -->` directives.
-pub(super) fn emit_main_doc(
-    category_files: &[String],
-    doc_dir: &Path,
-) -> Result<(), MxpmError> {
+pub(super) fn emit_main_doc(category_files: &[String], doc_dir: &Path) -> Result<(), MxpmError> {
     let mut content = String::from("# Maxima Core Documentation\n\n");
     content.push_str("## Introduction\n\n");
     content.push_str(
@@ -298,10 +368,7 @@ mod tests {
     fn test_category_mapping() {
         assert_eq!(map_category("Differential calculus"), "Calculus");
         assert_eq!(map_category("Integration"), "Calculus");
-        assert_eq!(
-            map_category("Matrices and Linear Algebra"),
-            "LinearAlgebra"
-        );
+        assert_eq!(map_category("Matrices and Linear Algebra"), "LinearAlgebra");
         assert_eq!(map_category("Simplification"), "Simplification");
         assert_eq!(map_category("Plotting"), "Plotting");
         assert_eq!(map_category("Number Theory"), "NumberTheory");
