@@ -1,5 +1,6 @@
 //! Documentation build commands: build, index, watch, serve.
 
+pub mod generate_core_docs;
 mod includes;
 mod mdbook;
 mod texi;
@@ -204,9 +205,20 @@ pub fn run_build(
     let info_path = texi::invoke_makeinfo(&texi_path)?;
 
     // If output dir differs from source dir, copy the .info there
+    // Also copy any split files (.info-1, .info-2, etc.)
     let info_dest = out_dir.join(info_path.file_name().unwrap());
     if info_dest != info_path {
         fs::copy(&info_path, &info_dest)?;
+        let info_basename = info_path.file_stem().unwrap_or_default().to_string_lossy();
+        if let Some(info_dir) = info_path.parent() {
+            for entry in fs::read_dir(info_dir)?.flatten() {
+                let name = entry.file_name();
+                let name_str = name.to_string_lossy();
+                if name_str.starts_with(&*info_basename) && name_str.contains(".info-") {
+                    fs::copy(entry.path(), out_dir.join(&name))?;
+                }
+            }
+        }
     }
     eprintln!("Wrote {}", info_dest.display());
 
@@ -239,9 +251,8 @@ pub fn run_build(
         } else {
             fs::read_to_string(path)?
         };
-        let doc_base_dir = path.parent().unwrap_or(Path::new("."));
         let package_name = determine_package_name(&source);
-        let doc_idx = doc_index::parse_markdown(&md_content, &package_name, file, doc_base_dir)?;
+        let doc_idx = doc_index::parse_markdown(&md_content, &package_name, file)?;
         let json = serde_json::to_string_pretty(&doc_idx)
             .map_err(|e| MxpmError::Io(std::io::Error::other(e)))?;
         let doc_index_dir = path.parent().unwrap_or(Path::new("."));

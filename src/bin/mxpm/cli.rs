@@ -193,6 +193,21 @@ pub enum DocCommand {
         #[arg(long)]
         install_path: Option<String>,
     },
+
+    /// Generate markdown docs from Maxima's Texinfo source for the core docs package
+    GenerateCoreDocs {
+        /// Path to the Maxima source directory (containing doc/info/maxima.texi)
+        #[arg(long)]
+        maxima_src: String,
+
+        /// Output directory for the generated package
+        #[arg(long, short)]
+        output: Option<String>,
+
+        /// Skip running mxpm doc build after generation
+        #[arg(long)]
+        no_build: bool,
+    },
 }
 
 pub async fn run(cli: Cli) -> anyhow::Result<()> {
@@ -293,6 +308,17 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
                 install_path,
             } => {
                 commands::doc::run_index(&file, output.as_deref(), install_path.as_deref())?;
+            }
+            DocCommand::GenerateCoreDocs {
+                maxima_src,
+                output,
+                no_build,
+            } => {
+                commands::doc::generate_core_docs::run(
+                    &maxima_src,
+                    output.as_deref(),
+                    no_build,
+                )?;
             }
         },
     }
