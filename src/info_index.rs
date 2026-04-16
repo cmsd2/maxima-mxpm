@@ -175,7 +175,7 @@ pub fn render_lisp(index: &InfoIndex, install_path: Option<&str>) -> String {
     );
 
     let mut sorted_deffn: Vec<&DeffnEntry> = index.deffn_defvr_entries.iter().collect();
-    sorted_deffn.sort_by(|a, b| a.topic.cmp(&b.topic));
+    sorted_deffn.sort_by_key(|e| &e.topic);
 
     for entry in &sorted_deffn {
         out.push_str(&format!(
@@ -194,7 +194,7 @@ pub fn render_lisp(index: &InfoIndex, install_path: Option<&str>) -> String {
     out.push_str("; CONTENT: (<NODE NAME> . (<FILENAME> <BYTE OFFSET> <LENGTH IN CHARACTERS>))\n");
 
     let mut sorted_sections: Vec<&SectionEntry> = index.section_entries.iter().collect();
-    sorted_sections.sort_by(|a, b| a.title.cmp(&b.title));
+    sorted_sections.sort_by_key(|e| &e.title);
 
     for entry in &sorted_sections {
         out.push_str(&format!(

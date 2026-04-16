@@ -40,7 +40,7 @@ pub async fn find_outdated(config: &Config) -> Result<Vec<OutdatedPackage>, Mxpm
         }
     }
 
-    outdated.sort_by(|a, b| a.name.cmp(&b.name));
+    outdated.sort_by_key(|o| o.name.clone());
     Ok(outdated)
 }
 

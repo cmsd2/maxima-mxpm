@@ -220,7 +220,7 @@ pub fn list_installed(config: &Config) -> Result<Vec<InstallMetadata>, MxpmError
         }
     }
 
-    packages.sort_by(|a, b| a.name.cmp(&b.name));
+    packages.sort_by_key(|p| p.name.clone());
     Ok(packages)
 }
 

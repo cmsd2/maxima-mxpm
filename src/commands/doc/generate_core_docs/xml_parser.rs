@@ -27,7 +27,7 @@ pub(super) fn parse_xml(xml: &str) -> Result<Vec<ExtractedSymbol>, MxpmError> {
     let mut symbols = Vec::new();
     let mut seen = HashSet::new();
     collect_definitions(doc.root_element(), &mut symbols, &mut seen, "");
-    symbols.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    symbols.sort_by_key(|s| s.name.to_lowercase());
     Ok(symbols)
 }
 
