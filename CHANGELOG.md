@@ -10,6 +10,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Renamed `mxpm init` to `mxpm new`
+
 ### Fixed
 
 ## [0.2.0] - 2026-04-15
@@ -25,11 +27,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - mdBook source generation from Markdown with section splitting and styled definition headings
 - Manifest-driven doc builds: `mxpm doc build` with no arguments reads `doc` field from `manifest.toml`
 - `doc` field in `manifest.toml` for specifying the package's documentation source file
-- Doc template (`doc/<name>.md`) scaffolded by `mxpm init`, with `load("<name>-index.lisp")` in entry file
-- CI validation and GitHub Pages deployment workflows scaffolded by `mxpm init`
+- Doc template (`doc/<name>.md`) scaffolded by `mxpm new`, with `load("<name>-index.lisp")` in entry file
+- CI validation and GitHub Pages deployment workflows scaffolded by `mxpm new`
 - Doc artifact staleness check (warns when outputs are older than source)
 - Parent directory walk to find `manifest.toml` when explicit file path is given
-- `mxpm init <name>` to scaffold new packages from Tera templates
+- `mxpm new <name>` to scaffold new packages from Tera templates
 - `mxpm install --path <dir>` to install from a local directory (copy mode)
 - `mxpm install --path <dir> --editable` to symlink a local package for live development
 - Package name validation (2-64 chars, lowercase + hyphens, no `maxima-` prefix)

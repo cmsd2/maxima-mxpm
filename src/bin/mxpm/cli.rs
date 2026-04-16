@@ -55,7 +55,7 @@ pub enum Command {
     },
 
     /// Create a new package from a template
-    Init {
+    New {
         /// Package name
         name: String,
 
@@ -197,12 +197,12 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
             )
             .await?;
         }
-        Command::Init {
+        Command::New {
             name,
             path,
             template,
         } => {
-            commands::init::run(&name, path.as_deref(), &template, format)?;
+            commands::new::run(&name, path.as_deref(), &template, format)?;
         }
         Command::List => {
             commands::list::run(format, &config)?;

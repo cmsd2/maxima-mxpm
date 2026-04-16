@@ -31,7 +31,7 @@ cargo install --locked --path .
 ## Usage
 
 ```
-mxpm init <name>              # Scaffold a new package
+mxpm new <name>               # Scaffold a new package
 mxpm search <query>           # Search for packages
 mxpm info <package>           # Show package details
 mxpm install <package>        # Install a package from the registry
@@ -90,7 +90,7 @@ include an entry named `community`.
 Scaffold a new package:
 
 ```bash
-mxpm init my-package
+mxpm new my-package
 cd my-package
 git init
 ```

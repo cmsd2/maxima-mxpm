@@ -46,7 +46,7 @@ pub fn validate_package_name(name: &str) -> Result<(), MxpmError> {
 }
 
 #[derive(Serialize)]
-struct InitResult {
+struct NewResult {
     name: String,
     path: String,
     template: String,
@@ -118,7 +118,7 @@ pub fn run(
 
     match format {
         OutputFormat::Json => {
-            output::print_json(&InitResult {
+            output::print_json(&NewResult {
                 name: name.to_string(),
                 path: target.display().to_string(),
                 template: template.to_string(),
@@ -222,7 +222,7 @@ mod tests {
     }
 
     #[test]
-    fn init_creates_files() {
+    fn new_creates_files() {
         let tmp = TempDir::new().unwrap();
         let target = tmp.path().join("test-pkg");
 
@@ -256,7 +256,7 @@ mod tests {
     }
 
     #[test]
-    fn init_errors_on_existing_dir() {
+    fn new_errors_on_existing_dir() {
         let tmp = TempDir::new().unwrap();
         let target = tmp.path().join("existing");
         fs::create_dir(&target).unwrap();
@@ -271,7 +271,7 @@ mod tests {
     }
 
     #[test]
-    fn init_unknown_template() {
+    fn new_unknown_template() {
         let tmp = TempDir::new().unwrap();
         let target = tmp.path().join("test-pkg");
 
