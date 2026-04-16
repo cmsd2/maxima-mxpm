@@ -10,10 +10,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+### Fixed
+
+## [0.6.0] - 2026-04-16
+
+### Added
+
+- `mxpm doc generate-core-docs --maxima-src <path>` command to convert Maxima's Texinfo source into an mxpm documentation package
+- Generates markdown files grouped by category (19 categories), figures, and manifest
+- XML entity handling for Texinfo-specific entities (`&arobase;`, `&linebreak;`, `&comma;`, etc.)
+- URL-encoded Texinfo label decoding for cross-references (`_005f` → `_`)
+
+### Changed
+
 - Doc index format: removed `body_html` field from symbols and sections; consumers render `body_md` themselves
 - Images in doc index stay as relative paths (no more data URI inlining)
+- Removed `pulldown-cmark` and `base64` dependencies
 
 ### Fixed
+
+- Doc build now copies split `.info` files (`.info-1`, `.info-2`, etc.) when output dir differs from source dir
 
 ## [0.5.0] - 2026-04-16
 
