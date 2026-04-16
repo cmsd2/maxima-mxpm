@@ -12,6 +12,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+## [0.6.3] - 2026-04-16
+
+### Fixed
+
+- Convert `(Figure name)` text references in Texinfo XML `<para>` elements to markdown images (fixes 209 missing figures in core docs — plotting, draw, dynamics, interpolation, etc.)
+
 ## [0.6.2] - 2026-04-16
 
 ### Added
