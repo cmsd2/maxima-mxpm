@@ -191,6 +191,17 @@ fn convert_element_to_md(node: &roxmltree::Node, out: &mut String, list_depth: u
         "group" => {
             convert_children_to_md(node, out, list_depth);
         }
+        "image" => {
+            // <image><imagefile>figures/name</imagefile><imagewidth>8cm</imagewidth></image>
+            let file = node
+                .children()
+                .find(|c| c.is_element() && c.tag_name().name() == "imagefile")
+                .map(|c| collect_text(&c))
+                .unwrap_or_default();
+            if !file.is_empty() {
+                out.push_str(&format!("![{file}]({file}.png)"));
+            }
+        }
         "anchor" | "indexterm" | "cindex" | "findex" | "vindex" | "tindex" | "pindex"
         | "kindex" => {
             // Skip index entries
