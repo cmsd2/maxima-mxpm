@@ -11,12 +11,27 @@ pub(super) fn convert_children_to_md(node: &roxmltree::Node, out: &mut String, l
     for child in node.children() {
         if child.is_text() {
             if let Some(text) = child.text() {
-                out.push_str(text);
+                push_text_with_figures(text, out);
             }
         } else if child.is_element() {
             convert_element_to_md(&child, out, list_depth);
         }
     }
+}
+
+/// Push text content, converting inline `(Figure name)` references to markdown images.
+fn push_text_with_figures(text: &str, out: &mut String) {
+    let re = regex::Regex::new(r"\(Figure\s+(\S+?)(?::\s*([^)]+))?\)").unwrap();
+    let mut last = 0;
+    for caps in re.captures_iter(text) {
+        let m = caps.get(0).unwrap();
+        out.push_str(&text[last..m.start()]);
+        let file = caps.get(1).unwrap().as_str();
+        let desc = caps.get(2).map(|d| d.as_str().trim()).unwrap_or(file);
+        out.push_str(&format!("![{desc}](figures/{file}.png)"));
+        last = m.end();
+    }
+    out.push_str(&text[last..]);
 }
 
 fn convert_element_to_md(node: &roxmltree::Node, out: &mut String, list_depth: usize) {
