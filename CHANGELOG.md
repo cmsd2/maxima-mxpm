@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.5.0] - 2026-04-16
+
+### Added
+
 - `mxpm init` command to initialize a package in an existing directory
 - Auto-detects `.mac` entry point; prompts when multiple files found
 - Interactive scaffolding: optionally generates .gitignore, README, docs, tests, and CI workflows
@@ -16,10 +24,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Images in markdown docs inlined as data URLs in the doc index HTML
 - Doc build warns about common markdown authoring issues (empty summaries, signature-as-summary, unknown cross-references)
 - Markdown authoring guide for package authors (`docs/markdown-authoring.md`)
-
-### Changed
-
-### Fixed
 
 ## [0.4.0] - 2026-04-16
 
