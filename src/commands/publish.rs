@@ -447,7 +447,10 @@ mod tests {
         // Top-level keys sorted: "packages" before "version"
         let packages_pos = output.find("\"packages\"").unwrap();
         let version_pos = output.find("\"version\"").unwrap();
-        assert!(packages_pos < version_pos, "top-level keys should be sorted");
+        assert!(
+            packages_pos < version_pos,
+            "top-level keys should be sorted"
+        );
 
         // Package names sorted: "alpha" before "zebra"
         let alpha_pos = output.find("\"alpha\"").unwrap();
