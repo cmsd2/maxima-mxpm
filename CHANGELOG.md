@@ -12,6 +12,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+## [0.6.1] - 2026-04-16
+
+### Added
+
+- Subcategory grouping in `generate-core-docs`: symbols are now grouped by (category, chapter), producing ~113 subcategory files instead of 19 monolithic category pages
+- Two-level mdBook navigation: Category > Subcategory > symbols
+- Stale `.md` file cleanup before doc regeneration
+
+### Changed
+
+- Main doc file now groups includes under `## Category` headings for proper mdBook nesting
+- `promote_first_heading` in mdBook generation now also handles `##` headings (not just `###`)
+
+### Fixed
+
+- Character offset calculation in `scan_sections` (info_index.rs): use `chars().count()` instead of byte `len()` for correct offsets with multi-byte UTF-8 characters
+
 ## [0.6.0] - 2026-04-16
 
 ### Added
