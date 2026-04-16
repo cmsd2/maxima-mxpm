@@ -4,6 +4,7 @@ use serde::Deserialize;
 #[derive(Debug, Deserialize)]
 pub struct Manifest {
     pub package: PackageInfo,
+    pub test: Option<TestInfo>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -19,6 +20,11 @@ pub struct PackageInfo {
     pub keywords: Option<Vec<String>>,
     pub maxima: Option<String>,
     pub doc: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TestInfo {
+    pub files: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -90,6 +96,24 @@ doc = "doc/my-pkg.md"
 "#;
         let m = parse_manifest(toml).unwrap();
         assert_eq!(m.package.doc.unwrap(), "doc/my-pkg.md");
+    }
+
+    #[test]
+    fn parse_manifest_with_test() {
+        let toml = r#"
+[package]
+name = "my-pkg"
+version = "1.0.0"
+description = "A package with tests"
+license = "MIT"
+entry = "my-pkg.mac"
+
+[test]
+files = ["rtest_my-pkg.mac", "rtest_extra.mac"]
+"#;
+        let m = parse_manifest(toml).unwrap();
+        let test = m.test.unwrap();
+        assert_eq!(test.files, vec!["rtest_my-pkg.mac", "rtest_extra.mac"]);
     }
 
     #[test]

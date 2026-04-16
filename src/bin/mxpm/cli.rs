@@ -82,6 +82,12 @@ pub enum Command {
         package: Option<String>,
     },
 
+    /// Run package tests
+    Test {
+        /// Package name (omit to test all installed packages)
+        package: Option<String>,
+    },
+
     /// Manage the package index
     Index {
         #[command(subcommand)]
@@ -221,6 +227,12 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
         }
         Command::Upgrade { package } => {
             commands::upgrade::run(package.as_deref(), cli.yes, format, &config).await?;
+        }
+        Command::Test { package } => {
+            let success = commands::test::run(package.as_deref(), format, &config)?;
+            if !success {
+                std::process::exit(1);
+            }
         }
         Command::Index { action } => match action {
             IndexAction::Update => {

@@ -84,6 +84,12 @@ pub enum MxpmError {
     #[error("pandoc failed: {message}")]
     PandocFailed { message: String },
 
+    #[error("maxima not found; install Maxima or set $MAXIMA_BIN")]
+    MaximaNotFound,
+
+    #[error("test failed for {package}: {message}")]
+    TestFailed { package: String, message: String },
+
     #[error("{0}")]
     Io(#[from] std::io::Error),
 }

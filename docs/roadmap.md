@@ -104,50 +104,40 @@ Cross-reference: [technical requirements](technical-requirements.md),
 
 ---
 
-## Phase 3: Package manifest and metadata
+## Phase 3: Package manifest and metadata — MOSTLY DONE
 
 **Goal:** Package authors can describe their packages with structured
 metadata.
 **Delivers:** The `manifest.toml` spec, `mxpm check`, and manifest-aware
 install.
 **Depends on:** Phase 1.
+**Status:** Mostly complete. Manifest spec defined, parsed, and documented.
+`mxpm new` scaffolds it. Missing: `mxpm check` validation command.
 
-### Work
+### What was delivered
 
-1. **Define `manifest.toml` format** (tech req §2)
-   - Required fields: name, version, description, license, entry, authors
-   - Optional fields: homepage, repository, keywords, maxima compat,
-     docs, test files, native deps
-   - Document the spec
+- `manifest.toml` format defined and parsed (`src/manifest.rs`)
+  - Required fields: name, version, description, license, entry
+  - Optional fields: homepage, repository, keywords, maxima compat,
+    doc, test files, authors
+- Manifest-aware install: `install_package` reads version from manifest
+- `mxpm list` shows version numbers for manifested packages
+- `mxpm new <name>` scaffolds a complete package with manifest, entry
+  point, test file, doc source, CI workflows, README, and `.gitignore`
+- Package name validation (2–64 chars, lowercase + hyphens, no `maxima-`
+  prefix)
+- `mxpm install --path <dir>` for local installs (copy mode)
+- `mxpm install --path <dir> --editable` for symlinked development
+- Author documentation: full `manifest.toml` reference in README with
+  field table
+- Example package: [maxima-example-package](https://github.com/cmsd2/maxima-example-package)
 
-2. **`mxpm check <path>`** (tech req §4.8)
+### Remaining work
+
+1. **`mxpm check <path>`** (tech req §4.8)
    - Validate `manifest.toml` against the spec
    - Check that referenced files exist (entry point, tests, docs)
    - Useful error messages for authors
-
-3. **Manifest-aware install**
-   - When a package has `manifest.toml`, use it for version, entry point,
-     and display metadata
-   - `mxpm list` now shows actual version numbers for manifested packages
-
-4. **Author documentation**
-   - How to write a `manifest.toml`
-   - How to add a package to the index
-   - Example walkthroughs
-
-### Notes
-
-The `manifest.toml` schema is already defined in `src/manifest.rs` and
-`install_package` already reads version from it when present. This phase
-is about formalizing the spec, adding `mxpm check` validation, and
-writing author-facing documentation.
-
-### Acceptance criteria
-
-- `mxpm check` correctly validates well-formed and malformed manifests
-- `mxpm install` uses manifest metadata when present
-- `mxpm list` shows version numbers from manifests
-- Author guide published with working examples
 
 ---
 
@@ -190,35 +180,35 @@ packages.
 
 ---
 
-## Phase 5: Testing integration
+## Phase 5: Testing integration — DONE
 
 **Goal:** Package tests are runnable from the CLI.
 **Delivers:** `mxpm test`.
 **Depends on:** Phase 1.
+**Status:** Complete.
 
-### Work
+### What was delivered
 
-1. **Maxima binary detection** (tech req §10.4)
-   - `$MAXIMA_BIN` → `$PATH` → platform-specific defaults
-   - Clear error if Maxima not found
+- **`mxpm test [package]`** — runs package tests through Maxima batch mode
+  - Discovers test files from `[test]` section in `manifest.toml`, or
+    falls back to `rtest_*.mac` convention
+  - Invokes `maxima --batch-string='load("pkg"); batch("rtest.mac", test);'`
+  - Parses both modern (`M/N tests passed`) and legacy
+    (`N problems attempted; M correct.`) Maxima output formats
+  - Human-readable and `--json` output
+  - Exit code 1 on any test failure
+- **`mxpm test`** (no argument) — tests all installed packages
+- **Maxima binary detection** via `paths::maxima_bin(config)`:
+  `config.maxima_bin` / `$MAXIMA_BIN` → `"maxima"` (OS PATH lookup)
+- `[test]` section parsed from `manifest.toml` (`test.files` field)
 
-2. **`mxpm test <package>`** (tech req §4.7)
-   - Discover test files: `manifest.toml` `[test]` section, or fallback
-     to `rtest_*.mac` convention
-   - Run via `maxima --batch-string='...'`
-   - Parse Maxima test output for pass/fail counts
-   - Return appropriate exit code
+### Design decisions made during implementation
 
-3. **`mxpm test --all`**
-   - Run tests for all installed packages
-   - Summary report
-
-### Acceptance criteria
-
-- `mxpm test` runs `rtest_*.mac` through Maxima batch mode
-- Pass/fail counts are extracted and reported
-- Exit code reflects test results (0 = all pass, 1 = failures)
-- Works when Maxima is installed via distro packages
+- **Two output parsers.** Maxima 5.47+ uses `M/N tests passed` format;
+  older versions use `N problems attempted; M correct.`. Both are handled.
+- **No `--all` flag.** Omitting the package name already tests all
+  installed packages, keeping the CLI simpler.
+- **Sync execution.** Test runs are local (no network), so no async needed.
 
 ---
 
@@ -254,34 +244,59 @@ steps.
 
 ---
 
-## Phase 7: Documentation integration
+## Phase 7: Documentation integration — DONE
 
 **Goal:** Package documentation integrates with Maxima's help system.
-**Delivers:** Documentation-aware install and `mxpm check` validation.
+**Delivers:** `mxpm doc` toolchain for building, previewing, and serving docs.
 **Depends on:** Phase 3.
+**Status:** Complete. Full doc toolchain delivered.
 
-### Work
+### What was delivered
 
-1. **Documentation-aware install**
-   - Recognize `[docs]` section in `manifest.toml`
-   - Ensure `.info`, `-index.lisp`, and `-index-html.lisp` files are
-     placed where Maxima can find them (within the package directory)
-
-2. **`mxpm check` documentation validation**
-   - If `docs.index` is declared, check that the entry point `.mac` file
-     contains a `load("...-index.lisp")` call
-   - Warn if `.texi` source exists but pre-built `.info` is missing
-
-3. **Author documentation**
-   - Guide for producing Texinfo docs with `?`/`??` integration
-   - Simplified instructions that don't require the Maxima source tree
-
-### Acceptance criteria
-
+- **`mxpm doc build [file]`** — builds all doc artifacts from `.texi` or
+  `.md` source:
+  - `.info` file (GNU Info format, via `makeinfo`)
+  - `*-index.lisp` (keyword → byte-offset lookup for `?`/`??` help)
+  - `--xml` flag for Texinfo XML output
+  - `--mdbook` flag for mdBook HTML generation
+  - `-o <dir>` for custom output directory
+  - Manifest-driven: reads `doc` field from `manifest.toml` when no file
+    argument given; walks parent directories to find manifest when
+    explicit file path is provided
+  - Staleness detection: warns when outputs are older than source
+- **`mxpm doc watch [file]`** — watches source file and rebuilds on changes
+- **`mxpm doc serve [file]`** — live preview with `mdbook serve` and
+  automatic source regeneration on changes
+  - `-p <port>`, `-n <hostname>`, `--open` flags
+- **`mxpm doc index <file>`** — low-level index generator from `.info`
+  or `.texi` files
+  - `-o <path>` for output file (`-` for stdout)
+  - `--install-path <dir>` to hardcode info file location
+- Markdown-to-Texinfo conversion via Pandoc with post-processing for
+  `@deffn`/`@defvr` blocks from heading conventions (`### Function:`,
+  `### Variable:`)
+- mdBook source generation with section splitting and styled definition
+  headings
+- Reimplemented `build_index.pl` in Rust (`src/info_index.rs`) — no Perl
+  dependency needed
+- CI workflows scaffolded by `mxpm new`: docs build and commit artifacts,
+  GitHub Pages deployment
 - `load("pkgname")` followed by `? func` returns package documentation
-  (for packages with `-index.lisp`)
-- `mxpm check` warns about documentation issues
-- Author guide covers the full doc pipeline
+  for packages with `-index.lisp`
+
+### Design decisions made during implementation
+
+- **Rust reimplementation of `build_index.pl`.** The original Perl script
+  is a build-time tool not distributed with Maxima. Reimplementing it in
+  Rust means package authors don't need Perl or the Maxima source tree.
+- **CI as canonical doc builder.** Different `makeinfo` versions produce
+  slightly different byte offsets. Rather than checking for staleness in
+  CI (which fails across environments), the docs workflow builds artifacts
+  and commits them back to the repo.
+- **Parent directory walk for manifest.** When an explicit file path is
+  given (e.g. `mxpm doc build doc/pkg.md`), the builder walks parent
+  directories to find `manifest.toml` and uses that directory as the
+  output root. This matches Cargo's behavior of finding `Cargo.toml`.
 
 ---
 
@@ -349,35 +364,34 @@ steps.
 | 0 | Package index repo | **Done** |
 | 1 | CLI: install, list, remove | **Done** |
 | 2 | CLI: search, info, outdated, upgrade | **Done** |
-| 3 | manifest.toml spec + check | Not started |
+| 3 | manifest.toml spec + `mxpm new` | **Mostly done** (missing `mxpm check`) |
 | 4 | Dependency resolution | Not started |
-| 5 | Test integration | Not started |
+| 5 | Test integration | **Done** |
 | 6 | Native code / build steps | Not started |
-| 7 | Documentation integration | Not started |
+| 7 | Documentation integration | **Done** |
 | 8 | Static catalog website | Not started |
 | 9 | Maxima-side integration | Not started |
 
 ### What to do next
 
-Phases 0–2 are the MVP and are complete. Before pursuing further phases,
-the priority should be:
+Phases 0–2 (MVP), 3 (manifest), and 7 (documentation) are complete or
+nearly complete. Remaining priorities:
 
-1. **Community engagement.** Reach out to the maxima-packages
-   maintainers and the Maxima mailing list. The index and the tool
-   should reflect community needs, not assumptions.
-2. **Real-world testing.** Install every indexed package on Linux,
+1. **`mxpm check`** — finish Phase 3 by adding manifest validation.
+2. **Phase 5 (testing)** — the most independently useful next step.
+   Doesn't require further manifest work and provides immediate value.
+3. **Community engagement.** Reach out to the Maxima mailing list. The
+   index and the tool should reflect community needs, not assumptions.
+4. **Real-world testing.** Install every indexed package on Linux,
    macOS, and Windows. Verify `load()` works in Maxima 5.47+.
-3. **Phase 5 (testing)** is the most independently useful next step —
-   it doesn't require manifests and provides immediate value.
-4. **Phase 3 (manifests)** unlocks phases 4, 6, and 7 but should wait
-   for community input on what fields actually matter.
 
 ### Critical path
 
 ```
-Phase 0 → Phase 1 → Phase 3 → Phase 4
+Phase 0 → Phase 1 → Phase 3 (mostly done) → Phase 4
                    ↘ Phase 2 (done)
                    ↘ Phase 5
+                   ↘ Phase 7 (done)
 ```
 
 After Phase 3, work fans out and phases 4–9 can be pursued in any

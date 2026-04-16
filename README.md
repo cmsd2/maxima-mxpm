@@ -43,6 +43,8 @@ mxpm outdated                 # Show packages with updates available
 mxpm upgrade                  # Upgrade all outdated packages
 mxpm upgrade <package>        # Upgrade a specific package
 mxpm remove <package>         # Remove a package
+mxpm test <package>           # Run package tests via Maxima
+mxpm test                     # Test all installed packages
 mxpm index update             # Force-refresh the package index
 
 # Documentation

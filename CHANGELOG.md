@@ -8,6 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- `mxpm test [package]` command to run `rtest_*.mac` files through Maxima batch mode
+- Maxima binary detection via `$MAXIMA_BIN`, config, or `$PATH` lookup
+- Test file discovery from `[test]` section in `manifest.toml` or `rtest_*.mac` convention
+- `[test]` section support in `manifest.toml` parser
+
 ### Changed
 
 - Renamed `mxpm init` to `mxpm new`

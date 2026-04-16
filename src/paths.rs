@@ -34,6 +34,18 @@ pub fn package_dir(config: &Config, name: &str) -> Result<PathBuf, MxpmError> {
     Ok(maxima_userdir(config)?.join(name))
 }
 
+/// Determine the Maxima binary path.
+///
+/// Resolution order:
+/// 1. Config file `maxima_bin` setting / `$MAXIMA_BIN` env var
+/// 2. `"maxima"` (rely on OS PATH lookup)
+pub fn maxima_bin(config: &Config) -> PathBuf {
+    config
+        .maxima_bin
+        .clone()
+        .unwrap_or_else(|| PathBuf::from("maxima"))
+}
+
 /// Platform-appropriate cache directory for mxpm.
 pub fn cache_dir() -> PathBuf {
     dirs::cache_dir()

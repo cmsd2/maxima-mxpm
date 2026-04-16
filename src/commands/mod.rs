@@ -7,4 +7,5 @@ pub mod new;
 pub mod outdated;
 pub mod remove;
 pub mod search;
+pub mod test;
 pub mod upgrade;

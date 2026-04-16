@@ -26,7 +26,7 @@ src/
     cli.rs            # clap derive CLI definition + dispatch
   commands/           # One file per subcommand
     install.rs, list.rs, remove.rs, search.rs, info.rs,
-    outdated.rs, upgrade.rs, index.rs, new.rs, doc.rs
+    outdated.rs, upgrade.rs, index.rs, new.rs, test.rs, doc.rs
   config.rs           # config.toml loading, env var overrides
   index.rs            # PackageIndex, PackageEntry, Source enum
   registry.rs         # Fetch/cache/resolve across registries
