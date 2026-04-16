@@ -78,37 +78,88 @@ This is the single biggest gap. A user who runs `mxpm install diophantine`
 and then types `dioph` in the editor gets no completions. They have to know
 the exact function names from the docs.
 
-**Solution: consume `<pkg>-doc-index.json`**
+**Solution: consume `<pkg>-doc-index.json` via `workspace/didChangeWatchedFiles`**
 
-The doc index format was designed specifically for this. The LSP should:
+The doc index format was designed specifically for this. The LSP uses the
+standard LSP file watching protocol — no custom extensions needed.
 
-1. At startup, scan `~/.maxima/*/doc/*-doc-index.json` for installed
-   packages with doc indexes.
-2. For each doc index, load the `symbols` map into the completion and
-   hover databases. Each symbol entry provides `signature` (for
+**Startup**:
+
+1. The LSP registers a file watcher for `~/.maxima/*/doc/*-doc-index.json`
+   via the `workspace/didChangeWatchedFiles` registration in its
+   `initialize` response:
+
+   ```json
+   {
+     "registrations": [{
+       "id": "mxpm-doc-indexes",
+       "method": "workspace/didChangeWatchedFiles",
+       "registerOptions": {
+         "watchers": [{
+           "globPattern": "~/.maxima/*/doc/*-doc-index.json",
+           "kind": 7
+         }]
+       }
+     }]
+   }
+   ```
+
+   `kind: 7` watches for create, change, and delete events. VS Code
+   handles the filesystem watching; the LSP just receives notifications.
+
+2. At startup, the LSP also does an initial scan of
+   `~/.maxima/*/doc/*-doc-index.json` to load any already-installed
+   packages. This covers the case where packages were installed before
+   the LSP started.
+
+3. For each doc index found, load the `symbols` map into the completion
+   and hover databases. Each symbol entry provides `signature` (for
    completions and signature help), `summary` (for hover tooltips),
    `body_md` (for full hover docs), `examples`, and `see_also`.
-3. Tag these entries with their package name so the LSP can show
+
+4. Tag these entries with their package name so the LSP can show
    "Requires: `load(\"diophantine\")`" in completions.
-4. Watch `~/.maxima/` for changes (installs/removals via mxpm) and
-   re-index when doc indexes appear or disappear.
+
+**Live updates**:
+
+When `mxpm install` or `mxpm remove` runs, the doc index files in
+`~/.maxima/` change. VS Code detects this and sends a
+`workspace/didChangeWatchedFiles` notification to the LSP. The LSP then:
+
+- **Created**: Loads the new doc index and adds its symbols.
+- **Changed**: Reloads the doc index (e.g. after `mxpm upgrade`).
+- **Deleted**: Removes the package's symbols from the databases.
+
+No restart required — the user installs a package in the terminal and
+completions appear immediately.
+
+**Resolution of `~/.maxima/`**:
+
+The LSP resolves the Maxima user directory using the same logic as mxpm:
+
+1. `$MAXIMA_USERDIR` environment variable (if set)
+2. `~/.maxima/` (default on all platforms)
+
+On Windows this is `%USERPROFILE%\maxima\` by default.
+
+**Packages without a doc index**:
 
 Packages without a doc index get no LSP integration — this is an
 intentional incentive for authors to run `mxpm doc build`. The format
 is designed to make this trivial: the scaffolded markdown conventions
 produce a complete doc index automatically.
 
-**Fallback for packages without doc indexes**:
-- The LSP could parse `manifest.toml` to learn the package name and
-  entry point, then do lightweight `.mac` parsing to extract function
-  names (already done for open documents). This gives completions
-  without descriptions.
-- Or simply show "no documentation available" — the CLI `?` help still
-  works via `-index.lisp`.
+As a fallback, the LSP could parse `manifest.toml` to learn the package
+name and entry point, then do lightweight `.mac` parsing to extract
+function names (already done for open documents). This gives completions
+without descriptions. Or simply show nothing — the CLI `?` help still
+works via `-index.lisp`.
 
 **MCP integration**: The same doc indexes should be exposed through the
 MCP `search_functions` and `get_function_docs` tools, so AI agents can
-discover and document package functions.
+discover and document package functions. The MCP server can do its own
+scan of `~/.maxima/` at startup and refresh on demand (it already has a
+long-lived process per notebook session).
 
 ### 2. No load() resolution or install suggestions
 
