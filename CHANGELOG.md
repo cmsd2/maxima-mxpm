@@ -8,13 +8,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
-- `mxpm publish` command to submit packages to the community index via GitHub PR
-- Supports `--tag` to publish a specific git tag and `--ref` for an explicit commit hash
-- Forks the index repo, updates `index.json`, and opens a PR automatically using `gh`
-
 ### Changed
 
 ### Fixed
+
+## [0.4.0] - 2026-04-16
+
+### Added
+
+- `mxpm publish` command to submit packages to the community index via GitHub PR
+- Supports `--tag` to publish a specific git tag and `--ref` for an explicit commit hash
+- Forks the index repo, updates `index.json`, and opens a PR automatically using `gh`
+- Re-publishing force-pushes and detects existing open PRs instead of creating duplicates
+- Index JSON output uses sorted keys at all levels for minimal diffs
+- `skip_serializing_if` on optional `PackageEntry` and `Source` fields to avoid `null` values
 
 ## [0.3.0] - 2026-04-16
 
