@@ -155,6 +155,7 @@ pub fn run_build(
     output_dir: Option<&str>,
     xml: bool,
     mdbook: bool,
+    slim: Option<&str>,
 ) -> Result<(), MxpmError> {
     let source = resolve_doc_source(file, output_dir)?;
     let file = &source.file;
@@ -252,7 +253,7 @@ pub fn run_build(
             fs::read_to_string(path)?
         };
         let package_name = determine_package_name(&source);
-        let doc_idx = doc_index::parse_markdown(&md_content, &package_name, file)?;
+        let doc_idx = doc_index::parse_markdown(&md_content, &package_name, file);
         let json = serde_json::to_string_pretty(&doc_idx)
             .map_err(|e| MxpmError::Io(std::io::Error::other(e)))?;
         let doc_index_dir = path.parent().unwrap_or(Path::new("."));
@@ -303,6 +304,18 @@ pub fn run_build(
             eprintln!("Warning: mdBook from .texi XML is not yet implemented.");
             eprintln!("Hint: use a .md source file for mdBook support.");
             let _ = xml_path;
+        }
+    }
+
+    // 6. Optional slim doc-index
+    if let Some(slim_path) = slim {
+        if !is_markdown {
+            eprintln!("Warning: --slim requires a .md source file; skipping slim index.");
+        } else {
+            let doc_index_dir = path.parent().unwrap_or(Path::new("."));
+            let doc_index_path = doc_index_dir.join(format!("{}-doc-index.json", stem));
+            run_slim_index(&doc_index_path.to_string_lossy(), Some(slim_path))
+                .map_err(|e| MxpmError::Io(std::io::Error::other(e.to_string())))?;
         }
     }
 
@@ -392,4 +405,25 @@ fn check_staleness(source_path: &Path, out_dir: &Path, stem: &str) {
             );
         }
     }
+}
+
+/// Read a full doc-index JSON and write a slim version (signatures + summaries only).
+fn run_slim_index(file: &str, output: Option<&str>) -> anyhow::Result<()> {
+    let content = fs::read_to_string(file)?;
+    let full: doc_index::DocIndex = serde_json::from_str(&content)?;
+    let slim = full.slim();
+    let json = serde_json::to_string_pretty(&slim)?;
+
+    if let Some(out_path) = output {
+        fs::write(out_path, &json)?;
+        eprintln!(
+            "Wrote slim doc-index: {} symbols ({} bytes)",
+            slim.symbols.len(),
+            json.len()
+        );
+    } else {
+        print!("{}", json);
+    }
+
+    Ok(())
 }

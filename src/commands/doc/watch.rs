@@ -29,6 +29,7 @@ pub fn run_watch(
         Some(source.out_dir.to_str().unwrap()),
         xml,
         mdbook,
+        None,
     )?;
 
     let source_path = Path::new(&source.file).canonicalize()?;
@@ -44,7 +45,7 @@ pub fn run_watch(
 
     watch_and_rebuild(&watch_paths, move || {
         eprintln!("Change detected, rebuilding...");
-        match run_build(Some(&file_str), Some(&out_dir_str), xml, mdbook) {
+        match run_build(Some(&file_str), Some(&out_dir_str), xml, mdbook, None) {
             Ok(()) => eprintln!("Rebuild complete."),
             Err(e) => eprintln!("Rebuild failed: {}", e),
         }
@@ -87,6 +88,7 @@ pub fn run_serve(
         Some(source.out_dir.to_str().unwrap()),
         false,
         true,
+        None,
     )?;
 
     // Resolve book directory (next to the source file)

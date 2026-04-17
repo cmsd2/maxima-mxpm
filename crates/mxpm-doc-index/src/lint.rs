@@ -1,17 +1,17 @@
 //! Lint checks for the parsed doc index.
 
-use super::DocIndex;
+use crate::DocIndex;
 
 /// Severity level for a lint warning.
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) enum LintLevel {
+pub enum LintLevel {
     Warn,
     Info,
 }
 
 /// A single lint warning about the documentation.
 #[derive(Debug)]
-pub(crate) struct LintWarning {
+pub struct LintWarning {
     /// The symbol name, or `None` for document-level warnings.
     pub symbol: Option<String>,
     pub level: LintLevel,
@@ -19,7 +19,7 @@ pub(crate) struct LintWarning {
 }
 
 /// Run lint checks on a parsed doc index.
-pub(crate) fn lint_doc_index(index: &DocIndex) -> Vec<LintWarning> {
+pub fn lint_doc_index(index: &DocIndex) -> Vec<LintWarning> {
     let mut warnings = Vec::new();
     let symbol_names: Vec<&String> = index.symbols.keys().collect();
 
@@ -118,7 +118,7 @@ mod tests {
     use std::collections::BTreeMap;
 
     use super::*;
-    use crate::doc_index::{ExampleEntry, SymbolEntry};
+    use crate::{ExampleEntry, SymbolEntry};
 
     fn make_symbol(summary: &str, examples: usize, see_also: Vec<&str>) -> SymbolEntry {
         SymbolEntry {
@@ -140,6 +140,8 @@ mod tests {
             see_also: see_also.into_iter().map(String::from).collect(),
             category: None,
             section: None,
+            keywords: Vec::new(),
+            signatures: Vec::new(),
         }
     }
 

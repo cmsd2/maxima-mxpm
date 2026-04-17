@@ -1,3 +1,7 @@
+[workspace]
+members = [".", "crates/mxpm-core", "crates/mxpm-doc-index"]
+resolver = "2"
+
 [package]
 name = "mxpm"
 version = "0.6.3"
@@ -19,6 +23,10 @@ name = "mxpm"
 path = "src/lib.rs"
 
 [dependencies]
+# Workspace crates
+mxpm-core = { path = "crates/mxpm-core" }
+mxpm-doc-index = { path = "crates/mxpm-doc-index" }
+
 # CLI
 clap = { version = "4", features = ["derive"] }
 

@@ -27,9 +27,16 @@ struct ExtractedSymbol {
     see_also: Vec<String>,
     category: String,
     chapter: String,
+    keywords: Vec<String>,
 }
 
-pub fn run(maxima_src: &str, output_dir: Option<&str>, no_build: bool) -> Result<(), MxpmError> {
+pub fn run(
+    maxima_src: &str,
+    output_dir: Option<&str>,
+    no_build: bool,
+    xml_dir: Option<&str>,
+    mdbook: bool,
+) -> Result<(), MxpmError> {
     let src = Path::new(maxima_src);
     let doc_info = src.join("doc").join("info");
     if !doc_info.exists() {
@@ -44,14 +51,27 @@ pub fn run(maxima_src: &str, output_dir: Option<&str>, no_build: bool) -> Result
     };
     fs::create_dir_all(&out)?;
 
+    // Use --xml-dir as persistent working directory, or a temp dir
+    let _temp_dir; // keep alive for the duration of run()
+    let work_path = if let Some(dir) = xml_dir {
+        let p = PathBuf::from(dir);
+        fs::create_dir_all(&p)?;
+        p
+    } else {
+        _temp_dir = tempfile::tempdir()?;
+        _temp_dir.path().to_path_buf()
+    };
+
     // Step 1: Preprocess Texinfo
-    let work_dir = tempfile::tempdir()?;
     eprintln!("Preprocessing Texinfo source...");
-    let texi_path = preprocess::preprocess_texi(&doc_info, work_dir.path())?;
+    let texi_path = preprocess::preprocess_texi(&doc_info, &work_path)?;
 
     // Step 2: Run makeinfo --xml
     eprintln!("Running makeinfo --xml...");
-    let xml_path = preprocess::run_makeinfo_xml(&texi_path, work_dir.path())?;
+    let xml_path = preprocess::run_makeinfo_xml(&texi_path, &work_path)?;
+    if xml_dir.is_some() {
+        eprintln!("XML saved to {}", xml_path.display());
+    }
 
     // Step 3: Parse XML
     eprintln!("Parsing XML...");
@@ -87,10 +107,25 @@ pub fn run(maxima_src: &str, output_dir: Option<&str>, no_build: bool) -> Result
 
     eprintln!("Generated package at {}", out.display());
 
-    // Step 8: Optionally run mxpm doc build
+    // Step 8: Optionally run mxpm doc build (always includes slim index)
     if !no_build {
         eprintln!("\nRunning doc build...");
-        super::run_build(Some("doc/maxima-core-docs.md"), None, false, false)?;
+        let md_path = doc_dir
+            .join("maxima-core-docs.md")
+            .to_string_lossy()
+            .to_string();
+        let slim_path = doc_dir
+            .join("maxima-core-docs-slim-doc-index.json")
+            .to_string_lossy()
+            .to_string();
+        let out_str = out.to_string_lossy().to_string();
+        super::run_build(
+            Some(&md_path),
+            Some(&out_str),
+            false,
+            mdbook,
+            Some(&slim_path),
+        )?;
     }
 
     Ok(())

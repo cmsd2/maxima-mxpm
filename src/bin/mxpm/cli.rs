@@ -142,6 +142,10 @@ pub enum DocCommand {
         /// Also generate mdBook source
         #[arg(long)]
         mdbook: bool,
+
+        /// Also write a slim doc-index to this path (signatures + summaries only)
+        #[arg(long)]
+        slim: Option<String>,
     },
 
     /// Watch a doc source file and rebuild on changes
@@ -207,7 +211,16 @@ pub enum DocCommand {
         /// Skip running mxpm doc build after generation
         #[arg(long)]
         no_build: bool,
+
+        /// Save intermediate XML and preprocessed Texinfo to this directory
+        #[arg(long)]
+        xml_dir: Option<String>,
+
+        /// Also generate mdBook source
+        #[arg(long)]
+        mdbook: bool,
     },
+
 }
 
 pub async fn run(cli: Cli) -> anyhow::Result<()> {
@@ -283,8 +296,15 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
                 output,
                 xml,
                 mdbook,
+                slim,
             } => {
-                commands::doc::run_build(file.as_deref(), output.as_deref(), xml, mdbook)?;
+                commands::doc::run_build(
+                    file.as_deref(),
+                    output.as_deref(),
+                    xml,
+                    mdbook,
+                    slim.as_deref(),
+                )?;
             }
             DocCommand::Watch {
                 file,
@@ -313,8 +333,16 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
                 maxima_src,
                 output,
                 no_build,
+                xml_dir,
+                mdbook,
             } => {
-                commands::doc::generate_core_docs::run(&maxima_src, output.as_deref(), no_build)?;
+                commands::doc::generate_core_docs::run(
+                    &maxima_src,
+                    output.as_deref(),
+                    no_build,
+                    xml_dir.as_deref(),
+                    mdbook,
+                )?;
             }
         },
     }

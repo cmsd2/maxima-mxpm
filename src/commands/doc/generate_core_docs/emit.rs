@@ -330,8 +330,28 @@ pub(super) fn emit_markdown_files(
 }
 
 /// Emit symbol headings, bodies, and see-also references into a markdown string.
+///
+/// Emits metadata comments before each symbol heading:
+/// - `<!-- category: ... -->` from the mapped category
+/// - `<!-- keywords: ... -->` from extracted index entries
+/// - `<!-- signatures: ... -->` when more than one signature exists
 fn emit_symbols(content: &mut String, syms: &[&ExtractedSymbol]) {
     for sym in syms {
+        // Emit metadata comments before the heading
+        content.push_str(&format!("<!-- category: {} -->\n", sym.category));
+        if !sym.keywords.is_empty() {
+            content.push_str(&format!(
+                "<!-- keywords: {} -->\n",
+                sym.keywords.join(", ")
+            ));
+        }
+        if !sym.signatures.is_empty() {
+            content.push_str(&format!(
+                "<!-- signatures: {} -->\n",
+                sym.signatures.join(", ")
+            ));
+        }
+
         let heading_type = &sym.symbol_type;
         let sig = sym
             .signatures
@@ -339,16 +359,14 @@ fn emit_symbols(content: &mut String, syms: &[&ExtractedSymbol]) {
             .map(|s| s.as_str())
             .unwrap_or(&sym.name);
         if heading_type == "Function" {
-            if let Some(paren) = sig.find('(') {
-                let name = &sig[..paren];
-                let args = &sig[paren..];
-                let inner = args
-                    .strip_prefix('(')
-                    .and_then(|s| s.strip_suffix(')'))
-                    .unwrap_or(args);
-                content.push_str(&format!("### Function: {name} ({inner})\n\n"));
+            // Extract args from the signature. The name in the heading is always
+            // sym.name (bare symbol), and the args come from the signature.
+            let args_str = extract_heading_args(sig, &sym.name);
+            if let Some(args) = args_str {
+                content.push_str(&format!("### Function: {} ({args})\n\n", sym.name));
             } else {
-                content.push_str(&format!("### Function: {sig} ()\n\n"));
+                // No parens — operator or bare function name
+                content.push_str(&format!("### Function: {}\n\n", sym.name));
             }
         } else {
             content.push_str(&format!("### Variable: {}\n\n", sym.name));
@@ -363,6 +381,31 @@ fn emit_symbols(content: &mut String, syms: &[&ExtractedSymbol]) {
             let refs: Vec<String> = sym.see_also.iter().map(|r| format!("`{r}`")).collect();
             content.push_str(&format!("See also: {}.\n\n", refs.join(", ")));
         }
+    }
+}
+
+/// Extract the arguments portion from a signature for use in a `### Function:` heading.
+///
+/// Given a signature like `diff(expr, x)` and name `diff`, returns `Some("expr, x")`.
+/// For `absolute_real_time()`, returns `Some("")` to preserve the empty parens.
+/// For subscript signatures like `%f[p, q]([a],[b],z)` and name `%f`, returns
+/// `Some("[p, q]([a],[b],z)")`.
+/// Returns `None` only if the signature has no argument list at all (bare operator name).
+fn extract_heading_args(sig: &str, name: &str) -> Option<String> {
+    // Strip the function name prefix to get the args portion
+    let rest = sig.strip_prefix(name)?;
+    let rest = rest.trim();
+    if rest.is_empty() {
+        return None;
+    }
+    // Strip outer parens if present, preserving everything inside
+    if let Some(inner) = rest.strip_prefix('(').and_then(|s| s.strip_suffix(')')) {
+        Some(inner.to_string())
+    } else if rest.starts_with('[') {
+        // Subscript notation like [p, q](...) — include everything
+        Some(rest.to_string())
+    } else {
+        Some(rest.to_string())
     }
 }
 

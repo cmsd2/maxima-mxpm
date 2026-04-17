@@ -1219,6 +1219,8 @@ dependencies = [
  "git2",
  "hex",
  "indicatif",
+ "mxpm-core",
+ "mxpm-doc-index",
  "notify",
  "notify-debouncer-mini",
  "openssl",
@@ -1235,6 +1237,26 @@ dependencies = [
  "thiserror",
  "tokio",
  "toml",
+]
+
+[[package]]
+name = "mxpm-core"
+version = "0.1.0"
+dependencies = [
+ "dirs",
+ "serde",
+ "toml",
+]
+
+[[package]]
+name = "mxpm-doc-index"
+version = "0.1.0"
+dependencies = [
+ "mxpm-core",
+ "regex",
+ "serde",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]

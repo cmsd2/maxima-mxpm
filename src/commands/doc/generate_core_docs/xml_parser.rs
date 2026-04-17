@@ -94,6 +94,8 @@ fn parse_definition(
     let category = extract_category(node, chapter_title, section_title);
     let chapter = clean_chapter_name(chapter_title);
 
+    let keywords = extract_keywords(node);
+
     // Find <definitionitem> for body content
     let def_item = node
         .children()
@@ -117,6 +119,7 @@ fn parse_definition(
         see_also,
         category,
         chapter,
+        keywords,
     })
 }
 
@@ -156,11 +159,8 @@ fn extract_signatures(node: &roxmltree::Node, name: &str) -> Vec<String> {
 
     // Collect from <definitionterm>
     for child in node.children() {
-        if child.is_element()
-            && child.tag_name().name() == "definitionterm"
-            && let Some(sig) = build_signature_from_term(&child)
-        {
-            signatures.push(sig);
+        if child.is_element() && child.tag_name().name() == "definitionterm" {
+            signatures.extend(build_signatures_from_term(&child));
         }
     }
 
@@ -170,17 +170,19 @@ fn extract_signatures(node: &roxmltree::Node, name: &str) -> Vec<String> {
             match child.tag_name().name() {
                 "deffnx" | "defvrx" => {
                     for term in child.children() {
-                        if term.is_element()
-                            && term.tag_name().name() == "definitionterm"
-                            && let Some(sig) = build_signature_from_term(&term)
-                        {
-                            signatures.push(sig);
+                        if term.is_element() && term.tag_name().name() == "definitionterm" {
+                            signatures.extend(build_signatures_from_term(&term));
                         }
                     }
                 }
                 _ => {}
             }
         }
+    }
+
+    // Remove bare name if there are more specific signatures with arguments
+    if signatures.len() > 1 {
+        signatures.retain(|s| s != name);
     }
 
     // If no signatures found, use the bare name
@@ -191,44 +193,103 @@ fn extract_signatures(node: &roxmltree::Node, name: &str) -> Vec<String> {
     signatures
 }
 
-fn build_signature_from_term(term: &roxmltree::Node) -> Option<String> {
-    let mut name = String::new();
-    let mut params = Vec::new();
-    let mut has_params = false;
+/// Build one or more signatures from a `<definitionterm>` element.
+///
+/// Maxima uses `@fname{}` to list multiple signature variants inside a single
+/// `@deffn` block. In the XML this produces a single `<definitionterm>` where
+/// each variant appears as a `<defparam>` containing the function name (from
+/// `@fname`), preceded by a linebreak `<defparam>`, with its own `<defdelimiter>`
+/// parens and `<defparam>` args.
+///
+/// We detect variant boundaries by looking for a `<defparam>` whose text
+/// matches the function name — this indicates the start of a new `@fname`
+/// variant. The initial `<deffunction>` element defines the primary signature.
+///
+/// Signatures are built incrementally by tracking `<defdelimiter>` characters
+/// (`(`, `)`, `[`, `]`, `,`) so that bracket subscripts and list arguments
+/// are faithfully preserved. Infix `<defparam>` tokens like `=` are joined
+/// with spaces rather than commas.
+/// Build one or more signatures from a `<definitionterm>` element.
+///
+/// Collects all `<deffunction>`/`<defvariable>`, `<defdelimiter>`, and
+/// `<defparam>`/`<var>` children as text parts, concatenated in document
+/// order. Empty `<defparam>` elements (linebreak separators from `@fname`
+/// macros) split the parts into separate signatures.
+///
+/// This mirrors the approach used by catalog-gen: no special handling of
+/// brackets, commas, or infix operators — the XML already contains the
+/// correct delimiters and they are joined literally.
+fn build_signatures_from_term(term: &roxmltree::Node) -> Vec<String> {
+    // None = linebreak separator between signature variants
+    let mut parts: Vec<Option<String>> = Vec::new();
+    let mut found_name = false;
+
+    let func_tag = if term
+        .parent()
+        .is_some_and(|p| matches!(p.tag_name().name(), "deffn" | "deffnx"))
+    {
+        "deffunction"
+    } else {
+        "defvariable"
+    };
 
     for child in term.children() {
         if child.is_element() {
             match child.tag_name().name() {
-                "deffunction" | "defvariable" => {
-                    name = collect_text(&child).trim().to_string();
-                }
-                "defparam" | "var" => {
-                    let p = collect_text(&child).trim().to_string();
-                    if p.is_empty() {
-                        // Empty defparam is a linebreak separator — skip
-                    } else {
-                        params.push(p);
-                        has_params = true;
-                    }
+                t if t == func_tag => {
+                    parts.push(Some(collect_text(&child).trim().to_string()));
+                    found_name = true;
                 }
                 "defdelimiter" => {
-                    // Comma or paren — indicates we have a function call
-                    has_params = true;
+                    let delim = collect_text(&child).trim().to_string();
+                    if delim == "," {
+                        parts.push(Some(", ".to_string()));
+                    } else {
+                        parts.push(Some(delim));
+                    }
+                }
+                "defparam" | "var" => {
+                    let text = collect_text(&child);
+                    let trimmed = text.trim();
+                    if trimmed.is_empty() {
+                        parts.push(None); // linebreak separator
+                    } else {
+                        parts.push(Some(trimmed.to_string()));
+                    }
+                }
+                "indexterm" | "defcategory" => {
+                    // Skip metadata elements
                 }
                 _ => {}
             }
         }
     }
 
-    if name.is_empty() {
-        return None;
+    if !found_name && parts.iter().all(|p| p.is_none()) {
+        return Vec::new();
     }
 
-    if has_params {
-        Some(format!("{}({})", name, params.join(", ")))
-    } else {
-        Some(name)
+    // Split parts on None separators into individual signatures
+    let mut sigs = Vec::new();
+    let mut current = Vec::new();
+
+    for part in parts {
+        match part {
+            Some(s) => current.push(s),
+            None => {
+                if !current.is_empty() {
+                    sigs.push(current.join(""));
+                    current = Vec::new();
+                }
+            }
+        }
     }
+    if !current.is_empty() {
+        sigs.push(current.join(""));
+    }
+
+    sigs.retain(|s| !s.trim().is_empty());
+    sigs
 }
 
 fn extract_category(_node: &roxmltree::Node, chapter_title: &str, section_title: &str) -> String {
@@ -244,6 +305,26 @@ fn extract_category(_node: &roxmltree::Node, chapter_title: &str, section_title:
         }
     }
     map_category(chapter_title)
+}
+
+/// Extract keyword index entries from `<indexterm>`/`<cindex>` descendants within a definition node.
+fn extract_keywords(node: &roxmltree::Node) -> Vec<String> {
+    let mut keywords = Vec::new();
+    let mut seen = HashSet::new();
+    for child in node.descendants() {
+        if child.is_element() {
+            match child.tag_name().name() {
+                "indexterm" | "cindex" => {
+                    let text = collect_text(&child).trim().to_string();
+                    if !text.is_empty() && seen.insert(text.clone()) {
+                        keywords.push(text);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    keywords
 }
 
 /// Strip common prefixes from a Maxima chapter title to get a clean subcategory name.

@@ -2,7 +2,7 @@
 
 use regex::Regex;
 
-use super::ExampleEntry;
+use crate::ExampleEntry;
 
 // ---------------------------------------------------------------------------
 // Intermediate parse types
@@ -17,6 +17,9 @@ pub(crate) struct SymbolKind {
     pub name: String,
     pub symbol_type: String,
     pub signature: String,
+    pub signatures: Vec<String>,
+    pub keywords: Vec<String>,
+    pub category: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -24,18 +27,61 @@ pub(crate) struct SymbolKind {
 // ---------------------------------------------------------------------------
 
 pub(crate) fn split_into_blocks(content: &str) -> Vec<ParsedBlock> {
-    let func_re = Regex::new(r"^### Function:\s+(\S+)\s*\((.*?)\)\s*$").unwrap();
+    let func_re = Regex::new(r"^### Function:\s+(\S+)\s*(?:\((.*?)\))?\s*$").unwrap();
     let var_re = Regex::new(r"^### Variable:\s+(\S+)\s*$").unwrap();
     let section_re = Regex::new(r"^## (.+)$").unwrap();
+    let keywords_re = Regex::new(r"^<!--\s*keywords:\s*(.*?)\s*-->$").unwrap();
+    let signatures_re = Regex::new(r"^<!--\s*signatures:\s*(.*?)\s*-->$").unwrap();
+    let category_re = Regex::new(r"^<!--\s*category:\s*(.*?)\s*-->$").unwrap();
 
     let mut blocks = Vec::new();
     let mut current: Option<ParsedBlock> = None;
     let mut body = String::new();
 
+    // Pending metadata comments accumulated before a symbol heading
+    let mut pending_keywords: Vec<String> = Vec::new();
+    let mut pending_signatures: Vec<String> = Vec::new();
+    let mut pending_category: Option<String> = None;
+
     for line in content.lines() {
+        // Check for metadata comments (only before symbol headings)
+        if let Some(caps) = keywords_re.captures(line) {
+            pending_keywords = caps[1]
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+            // Don't add to body if we're between blocks
+            if current.is_some() {
+                body.push_str(line);
+                body.push('\n');
+            }
+            continue;
+        }
+        if let Some(caps) = signatures_re.captures(line) {
+            pending_signatures = split_signatures(&caps[1]);
+            if current.is_some() {
+                body.push_str(line);
+                body.push('\n');
+            }
+            continue;
+        }
+        if let Some(caps) = category_re.captures(line) {
+            pending_category = Some(caps[1].trim().to_string());
+            if current.is_some() {
+                body.push_str(line);
+                body.push('\n');
+            }
+            continue;
+        }
+
         // Check for ## section heading
         if let Some(caps) = section_re.captures(line) {
             flush_block(&mut current, &mut body, &mut blocks);
+            // Clear pending metadata on section headings (not applicable)
+            pending_keywords.clear();
+            pending_signatures.clear();
+            pending_category = None;
             current = Some(ParsedBlock::Section {
                 title: caps[1].trim().to_string(),
                 body: String::new(),
@@ -47,17 +93,33 @@ pub(crate) fn split_into_blocks(content: &str) -> Vec<ParsedBlock> {
         if let Some(caps) = func_re.captures(line) {
             flush_block(&mut current, &mut body, &mut blocks);
             let name = caps[1].to_string();
-            let args = caps[2].to_string();
-            let signature = if args.is_empty() {
-                format!("{name}()")
+            let sigs = std::mem::take(&mut pending_signatures);
+            // Primary signature: prefer the <!-- signatures: --> comment (first
+            // entry) over the heading-derived signature, since the heading
+            // format can't represent subscripts or variable type annotations.
+            let signature = if let Some(first) = sigs.first() {
+                first.clone()
             } else {
-                format!("{name}({args})")
+                match caps.get(2) {
+                    Some(args_match) => {
+                        let args = args_match.as_str();
+                        if args.is_empty() {
+                            format!("{name}()")
+                        } else {
+                            format!("{name}({args})")
+                        }
+                    }
+                    None => name.clone(),
+                }
             };
             current = Some(ParsedBlock::Symbol {
                 kind: SymbolKind {
                     name,
                     symbol_type: "Function".to_string(),
                     signature,
+                    signatures: sigs,
+                    keywords: std::mem::take(&mut pending_keywords),
+                    category: pending_category.take(),
                 },
                 body: String::new(),
             });
@@ -68,11 +130,20 @@ pub(crate) fn split_into_blocks(content: &str) -> Vec<ParsedBlock> {
         if let Some(caps) = var_re.captures(line) {
             flush_block(&mut current, &mut body, &mut blocks);
             let name = caps[1].to_string();
+            let sigs = std::mem::take(&mut pending_signatures);
+            let signature = if let Some(first) = sigs.first() {
+                first.clone()
+            } else {
+                name.clone()
+            };
             current = Some(ParsedBlock::Symbol {
                 kind: SymbolKind {
                     name: name.clone(),
                     symbol_type: "Variable".to_string(),
-                    signature: name,
+                    signature,
+                    signatures: sigs,
+                    keywords: std::mem::take(&mut pending_keywords),
+                    category: pending_category.take(),
                 },
                 body: String::new(),
             });
@@ -109,6 +180,40 @@ fn flush_block(
         blocks.push(block);
     }
     body.clear();
+}
+
+/// Split a comma-separated list of signatures, respecting parenthesized and bracketed groups.
+/// E.g. "diff(expr, var), diff(expr, var, n)" → ["diff(expr, var)", "diff(expr, var, n)"]
+/// Also handles brackets: "adapt_depth[adapt_depth, integer]" stays intact.
+fn split_signatures(s: &str) -> Vec<String> {
+    let mut result = Vec::new();
+    let mut current = String::new();
+    let mut depth = 0i32;
+    for ch in s.chars() {
+        match ch {
+            '(' | '[' => {
+                depth += 1;
+                current.push(ch);
+            }
+            ')' | ']' => {
+                depth -= 1;
+                current.push(ch);
+            }
+            ',' if depth == 0 => {
+                let trimmed = current.trim().to_string();
+                if !trimmed.is_empty() {
+                    result.push(trimmed);
+                }
+                current.clear();
+            }
+            _ => current.push(ch),
+        }
+    }
+    let trimmed = current.trim().to_string();
+    if !trimmed.is_empty() {
+        result.push(trimmed);
+    }
+    result
 }
 
 // ---------------------------------------------------------------------------
