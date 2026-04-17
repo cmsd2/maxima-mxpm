@@ -24,8 +24,8 @@ path = "src/lib.rs"
 
 [dependencies]
 # Workspace crates
-mxpm-core = { path = "crates/mxpm-core" }
-mxpm-doc-index = { path = "crates/mxpm-doc-index" }
+mxpm-core = { version = "0.1.0", path = "crates/mxpm-core" }
+mxpm-doc-index = { version = "0.1.0", path = "crates/mxpm-doc-index" }
 
 # CLI
 clap = { version = "4", features = ["derive"] }
