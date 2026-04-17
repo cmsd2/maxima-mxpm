@@ -12,6 +12,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+## [0.7.0] - 2026-04-17
+
+### Added
+
+- `mxpm-core` workspace crate: shared manifest parsing and path utilities for use by external tools (e.g. aximar)
+- `mxpm-doc-index` workspace crate: DocIndex schema, parser, linter, and runtime loader as a reusable library
+- Doc index schema: `keywords`, `signatures`, and `category` fields on symbol entries
+- Keyword and alternative signature extraction from Texinfo XML during core docs generation
+- `--slim` flag on `mxpm doc build` to generate a slim doc index (merged from standalone slim-index command)
+- `--mdbook` flag on `mxpm doc generate-core-docs` to generate mdBook output alongside doc index
+- Automatic slim index generation during `generate-core-docs`
+
+### Changed
+
+- Workspace structure: `Cargo.toml` is now a workspace root with `mxpm`, `mxpm-core`, and `mxpm-doc-index` members
+- Manifest parsing and path utilities extracted from `src/manifest.rs` and `src/paths.rs` into `mxpm-core`
+- Doc index types, parser, and linter extracted from `src/doc_index/` into `mxpm-doc-index`
+
+### Fixed
+
 ## [0.6.3] - 2026-04-16
 
 ### Fixed
