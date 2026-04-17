@@ -220,7 +220,6 @@ pub enum DocCommand {
         #[arg(long)]
         mdbook: bool,
     },
-
 }
 
 pub async fn run(cli: Cli) -> anyhow::Result<()> {

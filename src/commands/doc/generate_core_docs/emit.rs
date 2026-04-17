@@ -340,10 +340,7 @@ fn emit_symbols(content: &mut String, syms: &[&ExtractedSymbol]) {
         // Emit metadata comments before the heading
         content.push_str(&format!("<!-- category: {} -->\n", sym.category));
         if !sym.keywords.is_empty() {
-            content.push_str(&format!(
-                "<!-- keywords: {} -->\n",
-                sym.keywords.join(", ")
-            ));
+            content.push_str(&format!("<!-- keywords: {} -->\n", sym.keywords.join(", ")));
         }
         if !sym.signatures.is_empty() {
             content.push_str(&format!(
