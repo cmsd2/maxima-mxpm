@@ -18,7 +18,15 @@ pub async fn run(
     config: &Config,
 ) -> Result<(), MxpmError> {
     if let Some(source_path) = path {
-        run_local(package, source_path, reinstall, editable, yes, format, config)
+        run_local(
+            package,
+            source_path,
+            reinstall,
+            editable,
+            yes,
+            format,
+            config,
+        )
     } else {
         let name = package.ok_or_else(|| {
             MxpmError::Io(std::io::Error::other(
@@ -155,11 +163,7 @@ async fn run_registry(
     Ok(())
 }
 
-fn maybe_install_quicklisp_deps(
-    name: &str,
-    yes: bool,
-    config: &Config,
-) -> Result<(), MxpmError> {
+fn maybe_install_quicklisp_deps(name: &str, yes: bool, config: &Config) -> Result<(), MxpmError> {
     let userdir = paths::maxima_userdir(config)?;
     let manifest = match manifest::load_manifest(&userdir.join(name)) {
         Some(m) => m,
@@ -220,11 +224,7 @@ fn maybe_install_quicklisp_deps(
     Ok(())
 }
 
-fn confirm_reinstall(
-    name: &str,
-    yes: bool,
-    format: OutputFormat,
-) -> Result<bool, MxpmError> {
+fn confirm_reinstall(name: &str, yes: bool, format: OutputFormat) -> Result<bool, MxpmError> {
     if format != OutputFormat::Human {
         return Err(MxpmError::AlreadyInstalled {
             name: name.to_string(),
