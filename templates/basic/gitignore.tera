@@ -6,3 +6,4 @@
 doc/book/
 doc/*.texi
 doc/*.expanded.md
+doc/*.info
