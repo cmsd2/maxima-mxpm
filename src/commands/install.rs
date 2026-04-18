@@ -13,18 +13,19 @@ pub async fn run(
     reinstall: bool,
     path: Option<&str>,
     editable: bool,
+    yes: bool,
     format: OutputFormat,
     config: &Config,
 ) -> Result<(), MxpmError> {
     if let Some(source_path) = path {
-        run_local(package, source_path, reinstall, editable, format, config)
+        run_local(package, source_path, reinstall, editable, yes, format, config)
     } else {
         let name = package.ok_or_else(|| {
             MxpmError::Io(std::io::Error::other(
                 "package name is required for registry installs",
             ))
         })?;
-        run_registry(name, reinstall, format, config).await
+        run_registry(name, reinstall, yes, format, config).await
     }
 }
 
@@ -33,6 +34,7 @@ fn run_local(
     source_path: &str,
     reinstall: bool,
     editable: bool,
+    yes: bool,
     format: OutputFormat,
     config: &Config,
 ) -> Result<(), MxpmError> {
@@ -52,12 +54,10 @@ fn run_local(
     let name = package.unwrap_or(&m.package.name);
 
     // Handle already-installed case
-    if !reinstall && crate::install::is_installed(name, config)? {
-        return Err(MxpmError::AlreadyInstalled {
-            name: name.to_string(),
-        });
-    }
-    if reinstall && crate::install::is_installed(name, config)? {
+    if crate::install::is_installed(name, config)? {
+        if !reinstall && !confirm_reinstall(name, yes, format)? {
+            return Ok(());
+        }
         crate::install::remove_package(name, config)?;
     }
 
@@ -67,6 +67,10 @@ fn run_local(
     }
 
     let metadata = crate::install::install_local_package(name, source_dir, editable, config)?;
+
+    if format == OutputFormat::Human {
+        maybe_install_quicklisp_deps(name, yes, config)?;
+    }
 
     match format {
         OutputFormat::Json => output::print_json(&metadata)?,
@@ -85,6 +89,7 @@ fn run_local(
 async fn run_registry(
     name: &str,
     reinstall: bool,
+    yes: bool,
     format: OutputFormat,
     config: &Config,
 ) -> Result<(), MxpmError> {
@@ -96,14 +101,10 @@ async fn run_registry(
     let (entry, registry_name) = registry::resolve_package(name, &registries)?;
 
     // Handle already-installed case
-    if !reinstall && crate::install::is_installed(name, config)? {
-        return Err(MxpmError::AlreadyInstalled {
-            name: name.to_string(),
-        });
-    }
-
-    // If reinstalling, remove existing first
-    if reinstall && crate::install::is_installed(name, config)? {
+    if crate::install::is_installed(name, config)? {
+        if !reinstall && !confirm_reinstall(name, yes, format)? {
+            return Ok(());
+        }
         crate::install::remove_package(name, config)?;
     }
 
@@ -114,6 +115,10 @@ async fn run_registry(
     let entry = entry.clone();
     let registry_name = registry_name.to_string();
     let metadata = crate::install::install_package(name, &entry, &registry_name, config).await?;
+
+    if format == OutputFormat::Human {
+        maybe_install_quicklisp_deps(name, yes, config)?;
+    }
 
     match format {
         OutputFormat::Json => output::print_json(&metadata)?,
@@ -148,4 +153,101 @@ async fn run_registry(
     }
 
     Ok(())
+}
+
+fn maybe_install_quicklisp_deps(
+    name: &str,
+    yes: bool,
+    config: &Config,
+) -> Result<(), MxpmError> {
+    let userdir = paths::maxima_userdir(config)?;
+    let manifest = match manifest::load_manifest(&userdir.join(name)) {
+        Some(m) => m,
+        None => return Ok(()),
+    };
+    let systems = match manifest.lisp.and_then(|l| l.quicklisp_systems) {
+        Some(s) if !s.is_empty() => s,
+        _ => return Ok(()),
+    };
+
+    let systems_str = systems.join(", ");
+
+    use crate::quicklisp::{DetectResult, QuicklispSetup};
+
+    match QuicklispSetup::detect() {
+        DetectResult::Ready(ql) => {
+            eprintln!();
+            eprintln!("  CL dependencies needed: {systems_str}");
+
+            let proceed = if yes {
+                true
+            } else {
+                eprint!("  Install via Quicklisp now? [Y/n] ");
+                let mut input = String::new();
+                std::io::stdin().read_line(&mut input).unwrap_or(0);
+                let trimmed = input.trim().to_lowercase();
+                trimmed.is_empty() || trimmed == "y" || trimmed == "yes"
+            };
+
+            if proceed {
+                eprintln!(
+                    "  Installing CL dependencies (this may take a few minutes on first run)..."
+                );
+                ql.install_systems(&systems, config.sbcl_dynamic_space_size())?;
+                eprintln!("  CL dependencies installed.");
+            } else {
+                print_quicklisp_preinstall_hint(&systems, name);
+            }
+        }
+        DetectResult::NoQuicklisp => {
+            eprintln!();
+            eprintln!("  This package requires Quicklisp (SBCL).");
+            eprintln!("  To set up Quicklisp:");
+            eprintln!("    mxpm setup quicklisp");
+            eprintln!();
+            print_quicklisp_preinstall_hint(&systems, name);
+        }
+        DetectResult::NoSbcl => {
+            eprintln!();
+            eprintln!("  This package requires SBCL with Quicklisp.");
+            eprintln!("  Install SBCL first:");
+            eprintln!("    macOS:  brew install sbcl");
+            eprintln!("    Linux:  apt install sbcl");
+            eprintln!();
+            eprintln!("  Then run: mxpm setup quicklisp");
+        }
+    }
+    Ok(())
+}
+
+fn confirm_reinstall(
+    name: &str,
+    yes: bool,
+    format: OutputFormat,
+) -> Result<bool, MxpmError> {
+    if format != OutputFormat::Human {
+        return Err(MxpmError::AlreadyInstalled {
+            name: name.to_string(),
+        });
+    }
+    if yes {
+        return Ok(true);
+    }
+    eprint!("Package '{name}' is already installed. Reinstall? [y/N] ");
+    let mut input = String::new();
+    std::io::stdin().read_line(&mut input).unwrap_or(0);
+    let trimmed = input.trim().to_lowercase();
+    Ok(trimmed == "y" || trimmed == "yes")
+}
+
+fn print_quicklisp_preinstall_hint(systems: &[String], name: &str) {
+    let ql_args = systems
+        .iter()
+        .map(|s| format!(":{s}"))
+        .collect::<Vec<_>>()
+        .join(" ");
+    eprintln!("  To pre-install CL dependencies:");
+    eprintln!("    sbcl --eval '(ql:quickload (list {ql_args}))' --quit");
+    eprintln!();
+    eprintln!("  Or they will be installed automatically on first load(\"{name}\").");
 }

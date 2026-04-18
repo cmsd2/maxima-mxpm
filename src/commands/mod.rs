@@ -9,5 +9,6 @@ pub mod outdated;
 pub mod publish;
 pub mod remove;
 pub mod search;
+pub mod setup;
 pub mod test;
 pub mod upgrade;

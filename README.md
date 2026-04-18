@@ -49,6 +49,7 @@ mxpm test                     # Test all installed packages
 mxpm publish                  # Publish current HEAD to the index
 mxpm publish --tag v1.0.0     # Publish a specific tag
 mxpm index update             # Force-refresh the package index
+mxpm setup quicklisp          # Install Quicklisp for SBCL
 
 # Documentation
 mxpm doc build                # Build .info and help index from manifest
@@ -74,6 +75,7 @@ Optional config file at `~/.config/mxpm/config.toml` (Linux/macOS) or
 ```toml
 maxima_userdir = "/custom/path/.maxima"
 cache_ttl = 600  # seconds (default: 3600)
+sbcl_dynamic_space_size = 4096  # MB (default: 4096)
 
 [[registries]]
 name = "private"
@@ -88,7 +90,9 @@ include an entry named `community`.
 | Variable | Description |
 |----------|-------------|
 | `MAXIMA_USERDIR` | Override the Maxima user directory |
+| `MAXIMA_BIN` | Override the Maxima binary path |
 | `MXPM_REGISTRY_URL` | Override the default registry URL |
+| `MXPM_SBCL_DYNAMIC_SPACE_SIZE` | SBCL heap size in MB (default: 4096) |
 
 ## Creating packages
 
@@ -133,6 +137,9 @@ maxima = ">= 5.47"
 [package.authors]
 names = ["Author Name"]
 
+[lisp]
+quicklisp_systems = ["magicl"]  # CL deps installed via Quicklisp
+
 [test]
 files = ["rtest_my-package.mac"]
 ```
@@ -150,6 +157,7 @@ files = ["rtest_my-package.mac"]
 | `keywords` | no | List of keywords for search |
 | `maxima` | no | Maxima version requirement |
 | `authors.names` | no | List of author names |
+| `lisp.quicklisp_systems` | no | Common Lisp systems to install via Quicklisp (SBCL only) |
 | `test.files` | no | List of test files for `batch()` |
 
 ## Documentation

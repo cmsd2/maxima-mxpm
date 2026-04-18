@@ -17,6 +17,9 @@ pub struct Config {
     /// Cache TTL in seconds (default: 3600).
     pub cache_ttl: Option<u64>,
 
+    /// SBCL dynamic space size in MB (default: 4096).
+    pub sbcl_dynamic_space_size: Option<u32>,
+
     /// Package registries, searched in order.
     pub registries: Option<Vec<RegistryConfig>>,
 }
@@ -61,6 +64,11 @@ impl Config {
         if let Ok(bin) = std::env::var("MAXIMA_BIN") {
             self.maxima_bin = Some(PathBuf::from(bin));
         }
+        if let Ok(size) = std::env::var("MXPM_SBCL_DYNAMIC_SPACE_SIZE")
+            && let Ok(n) = size.parse()
+        {
+            self.sbcl_dynamic_space_size = Some(n);
+        }
         if let Ok(url) = std::env::var("MXPM_REGISTRY_URL") {
             self.registries = Some(vec![RegistryConfig {
                 name: "override".to_string(),
@@ -86,6 +94,11 @@ impl Config {
     /// Cache TTL as a Duration (default: 1 hour).
     pub fn cache_ttl_duration(&self) -> std::time::Duration {
         std::time::Duration::from_secs(self.cache_ttl.unwrap_or(3600))
+    }
+
+    /// SBCL dynamic space size in MB (default: 4096).
+    pub fn sbcl_dynamic_space_size(&self) -> u32 {
+        self.sbcl_dynamic_space_size.unwrap_or(4096)
     }
 }
 
@@ -144,6 +157,21 @@ mod tests {
             ..Config::default()
         };
         assert_eq!(config.cache_ttl_duration().as_secs(), 300);
+    }
+
+    #[test]
+    fn default_sbcl_dynamic_space_size() {
+        let config = Config::default();
+        assert_eq!(config.sbcl_dynamic_space_size(), 4096);
+    }
+
+    #[test]
+    fn custom_sbcl_dynamic_space_size() {
+        let config = Config {
+            sbcl_dynamic_space_size: Some(8192),
+            ..Config::default()
+        };
+        assert_eq!(config.sbcl_dynamic_space_size(), 8192);
     }
 
     #[test]

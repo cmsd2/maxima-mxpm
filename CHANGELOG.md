@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- Quicklisp dependency support: `[lisp]` section in `manifest.toml` with `quicklisp_systems` field
+- `mxpm setup quicklisp` command to download and install Quicklisp for SBCL
+- Install-time Quicklisp integration: detects SBCL/Quicklisp and offers to install CL dependencies automatically
+- Interactive reinstall prompt when installing an already-installed package (replaces hard error)
+- `sbcl_dynamic_space_size` config option and `MXPM_SBCL_DYNAMIC_SPACE_SIZE` env var (default: 4096 MB)
+
 ### Changed
 
 ### Fixed

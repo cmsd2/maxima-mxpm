@@ -6,6 +6,7 @@ use serde::Deserialize;
 #[derive(Debug, Deserialize)]
 pub struct Manifest {
     pub package: PackageInfo,
+    pub lisp: Option<LispInfo>,
     pub test: Option<TestInfo>,
 }
 
@@ -32,6 +33,11 @@ pub struct TestInfo {
 #[derive(Debug, Deserialize)]
 pub struct AuthorInfo {
     pub names: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct LispInfo {
+    pub quicklisp_systems: Option<Vec<String>>,
 }
 
 /// Try to parse a manifest.toml from its string contents.
@@ -125,6 +131,24 @@ files = ["rtest_my-pkg.mac", "rtest_extra.mac"]
         let m = parse_manifest(toml).unwrap();
         let test = m.test.unwrap();
         assert_eq!(test.files, vec!["rtest_my-pkg.mac", "rtest_extra.mac"]);
+    }
+
+    #[test]
+    fn parse_manifest_with_lisp() {
+        let toml = r#"
+[package]
+name = "numerics"
+version = "0.1.0"
+description = "NumPy-like numerical computing"
+license = "MIT"
+entry = "numerics.mac"
+
+[lisp]
+quicklisp_systems = ["magicl"]
+"#;
+        let m = parse_manifest(toml).unwrap();
+        let lisp = m.lisp.unwrap();
+        assert_eq!(lisp.quicklisp_systems.unwrap(), vec!["magicl"]);
     }
 
     #[test]

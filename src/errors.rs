@@ -102,6 +102,9 @@ pub enum MxpmError {
     #[error("publish failed: {message}")]
     PublishFailed { message: String },
 
+    #[error("quicklisp setup failed: {message}")]
+    QuicklispFailed { message: String },
+
     #[error("{0}")]
     Io(#[from] std::io::Error),
 }

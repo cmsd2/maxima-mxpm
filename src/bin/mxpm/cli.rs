@@ -111,11 +111,23 @@ pub enum Command {
         git_ref: Option<String>,
     },
 
+    /// Set up development tools
+    Setup {
+        #[command(subcommand)]
+        action: SetupAction,
+    },
+
     /// Documentation tools
     Doc {
         #[command(subcommand)]
         command: DocCommand,
     },
+}
+
+#[derive(Subcommand)]
+pub enum SetupAction {
+    /// Install Quicklisp (requires SBCL)
+    Quicklisp,
 }
 
 #[derive(Subcommand)]
@@ -242,6 +254,7 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
                 reinstall,
                 path.as_deref(),
                 editable,
+                cli.yes,
                 format,
                 &config,
             )
@@ -284,6 +297,11 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
                 std::process::exit(1);
             }
         }
+        Command::Setup { action } => match action {
+            SetupAction::Quicklisp => {
+                commands::setup::quicklisp(cli.yes, format, &config)?;
+            }
+        },
         Command::Index { action } => match action {
             IndexAction::Update => {
                 commands::index::update(format, &config).await?;

@@ -8,6 +8,7 @@ pub mod install;
 pub mod manifest;
 pub mod output;
 pub mod paths;
+pub mod quicklisp;
 pub mod registry;
 pub mod source;
 pub mod types;
