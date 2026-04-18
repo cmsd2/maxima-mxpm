@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.8.0] - 2026-04-18
+
+### Added
+
 - Quicklisp dependency support: `[lisp]` section in `manifest.toml` with `quicklisp_systems` field
 - `mxpm setup quicklisp` command to download and install Quicklisp for SBCL
 - Install-time Quicklisp integration: detects SBCL/Quicklisp and offers to install CL dependencies automatically
@@ -16,7 +24,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
-### Fixed
+- `mxpm test` now detects the package from the current directory instead of testing all packages; use `--all` to test everything
 
 ## [0.7.0] - 2026-04-17
 
