@@ -177,36 +177,71 @@ fn run_test_file(
     }
 }
 
+/// Detect if the current directory is an editable (symlinked) package.
+///
+/// Scans installed packages for symlinks that point to the current directory.
+fn detect_package_from_cwd(config: &Config) -> Option<String> {
+    let cwd = std::env::current_dir().ok()?;
+    let cwd = cwd.canonicalize().ok()?;
+    let userdir = paths::maxima_userdir(config).ok()?;
+    let entries = std::fs::read_dir(&userdir).ok()?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_symlink()
+            && let Ok(target) = std::fs::canonicalize(&path)
+            && target == cwd
+        {
+            return Some(entry.file_name().to_string_lossy().into_owned());
+        }
+    }
+    // Also check if we're in a directory with a manifest.toml (local package dir)
+    let manifest_path = cwd.join("manifest.toml");
+    if manifest_path.exists()
+        && let Ok(contents) = std::fs::read_to_string(&manifest_path)
+        && let Ok(m) = manifest::parse_manifest(&contents)
+    {
+        return Some(m.package.name);
+    }
+    None
+}
+
 /// Run tests for a single package or all installed packages.
 ///
 /// Returns `Ok(true)` if all tests pass, `Ok(false)` if any fail.
 pub fn run(
     package: Option<&str>,
+    all: bool,
     format: OutputFormat,
     config: &Config,
 ) -> Result<bool, MxpmError> {
     let maxima_bin = paths::maxima_bin(config);
 
-    let packages: Vec<String> = match package {
-        Some(name) => {
-            let pkg_dir = paths::package_dir(config, name)?;
-            if !pkg_dir.exists() {
-                return Err(MxpmError::NotInstalled {
-                    name: name.to_string(),
-                });
-            }
-            vec![name.to_string()]
+    let packages: Vec<String> = if let Some(name) = package {
+        let pkg_dir = paths::package_dir(config, name)?;
+        if !pkg_dir.exists() {
+            return Err(MxpmError::NotInstalled {
+                name: name.to_string(),
+            });
         }
-        None => {
-            let installed = install::list_installed(config)?;
-            if installed.is_empty() {
-                if matches!(format, OutputFormat::Human) {
-                    eprintln!("No packages installed.");
-                }
-                return Ok(true);
+        vec![name.to_string()]
+    } else if all {
+        let installed = install::list_installed(config)?;
+        if installed.is_empty() {
+            if matches!(format, OutputFormat::Human) {
+                eprintln!("No packages installed.");
             }
-            installed.into_iter().map(|m| m.name).collect()
+            return Ok(true);
         }
+        installed.into_iter().map(|m| m.name).collect()
+    } else if let Some(name) = detect_package_from_cwd(config) {
+        if matches!(format, OutputFormat::Human) {
+            eprintln!("Detected package: {name}");
+        }
+        vec![name]
+    } else {
+        return Err(MxpmError::Io(std::io::Error::other(
+            "no package specified. Use: mxpm test <package>, or run from a package directory, or use --all",
+        )));
     };
 
     let mut all_results = Vec::new();

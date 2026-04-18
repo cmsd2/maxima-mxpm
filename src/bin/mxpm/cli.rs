@@ -91,8 +91,12 @@ pub enum Command {
 
     /// Run package tests
     Test {
-        /// Package name (omit to test all installed packages)
+        /// Package name (omit to detect from current directory)
         package: Option<String>,
+
+        /// Test all installed packages
+        #[arg(long)]
+        all: bool,
     },
 
     /// Manage the package index
@@ -291,8 +295,8 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
         Command::Publish { tag, git_ref } => {
             commands::publish::run(tag.as_deref(), git_ref.as_deref(), cli.yes, format, &config)?;
         }
-        Command::Test { package } => {
-            let success = commands::test::run(package.as_deref(), format, &config)?;
+        Command::Test { package, all } => {
+            let success = commands::test::run(package.as_deref(), all, format, &config)?;
             if !success {
                 std::process::exit(1);
             }
