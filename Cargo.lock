@@ -1241,7 +1241,7 @@ dependencies = [
 
 [[package]]
 name = "mxpm-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "dirs",
  "serde",
@@ -1250,7 +1250,7 @@ dependencies = [
 
 [[package]]
 name = "mxpm-doc-index"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "mxpm-core",
  "regex",
