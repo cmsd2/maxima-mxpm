@@ -12,6 +12,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+## [0.8.1] - 2026-04-24
+
+### Added
+
+- `tests/test_harness.mac` template scaffolded by `mxpm new`, providing `mxpm_run_tests` for running multiple test files under `batch(f, test)` with snapshot/rollback isolation between files
+
+### Changed
+
+- `mxpm test` now shows failure details (problem number, input, actual vs expected result) under failing test files instead of only reporting pass/fail counts
+- `mxpm test` sums test summaries across multi-file wrappers so the reported total matches what actually ran
+- `mxpm test` surfaces the tail of Maxima's output when no test summary is produced (e.g. Maxima crash or package load failure)
+
+### Fixed
+
 ## [0.8.0] - 2026-04-18
 
 ### Added

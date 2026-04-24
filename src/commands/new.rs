@@ -68,6 +68,10 @@ pub const BASIC_TEMPLATES: &[(&str, &str)] = &[
         include_str!("../../templates/basic/rtest.mac.tera"),
     ),
     (
+        "tests/test_harness.mac",
+        include_str!("../../templates/basic/test_harness.mac.tera"),
+    ),
+    (
         "doc/{{ name }}.md",
         include_str!("../../templates/basic/doc.md.tera"),
     ),

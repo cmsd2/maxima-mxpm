@@ -18,6 +18,8 @@ struct TestFileResult {
     passed: u32,
     failed: u32,
     success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    failure_details: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -63,12 +65,89 @@ fn discover_test_files(pkg_dir: &Path) -> Vec<String> {
     files
 }
 
-/// Parse Maxima batch test output for the summary line.
+/// Extract the failure portions of Maxima test output.
 ///
-/// Maxima 5.47+: `M/N tests passed`
-/// Older Maxima:  `N problems attempted; M correct.`
+/// `batch(file, test)` prints a block per failing test:
+///
+/// ```text
+/// ********************** Problem 3 ***************
+/// Input:
+/// <expr>
+///
+/// Result:
+/// <actual>
+///
+/// This differed from the expected result:
+/// <expected>
+/// ```
+///
+/// When the test wrapper uses mxpm_run_tests to batch multiple sub-files,
+/// the output contains several of these regions, each terminated by a
+/// summary line.  We collect every such region -- the file name appears
+/// inside each block ("rtest_foo.mac: Problem N (line L)"), so failure
+/// attribution is preserved.
+fn extract_failure_details(output: &str) -> Option<String> {
+    let lines: Vec<&str> = output.lines().collect();
+    let mut blocks: Vec<String> = Vec::new();
+    let mut i = 0;
+    while i < lines.len() {
+        if lines[i].contains("***") && lines[i].contains("Problem") {
+            // Capture from this Problem banner up to (but not past) the NEXT
+            // one.  A block ends either at the next Problem banner, at a
+            // summary line, or at EOF.
+            let start = i;
+            i += 1;
+            while i < lines.len() {
+                let trimmed = lines[i].trim();
+                let is_summary = trimmed.ends_with("tests passed")
+                    || trimmed.trim_end_matches('.').ends_with("correct");
+                let is_next_problem = lines[i].contains("***") && lines[i].contains("Problem");
+                if is_next_problem {
+                    break;
+                }
+                if is_summary {
+                    i += 1;
+                    break;
+                }
+                i += 1;
+            }
+            let block: String = lines[start..i.min(lines.len())].join("\n");
+            // Keep only blocks that are actual failures.  Passing tests also
+            // emit a Problem banner but end with "... Which was correct."
+            // Failures include "This differed from the expected result:".
+            if block.contains("This differed from the expected result") {
+                blocks.push(block.trim_end().to_string());
+            }
+        } else {
+            i += 1;
+        }
+    }
+
+    if blocks.is_empty() {
+        None
+    } else {
+        Some(blocks.join("\n\n"))
+    }
+}
+
+/// Parse Maxima batch test output and sum all summary lines.
+///
+/// A single batch(f, test) call emits one summary line.  When a test wrapper
+/// uses mxpm_run_tests to run multiple sub-files, the output contains one
+/// summary per sub-file; we sum them so the reported total matches what
+/// actually ran.
+///
+/// Modern Maxima (5.47+): `M/N tests passed`
+/// Older Maxima:          `N problems attempted; M correct.`
+///
+/// Returns (total_attempted, total_correct) across all summary lines, or
+/// None if no summary was found at all.
 fn parse_test_output(output: &str) -> Option<(u32, u32)> {
-    for line in output.lines().rev() {
+    let mut total_attempted: u32 = 0;
+    let mut total_correct: u32 = 0;
+    let mut saw_any = false;
+
+    for line in output.lines() {
         let trimmed = line.trim();
 
         // Modern format: "M/N tests passed"
@@ -80,7 +159,10 @@ fn parse_test_output(output: &str) -> Option<(u32, u32)> {
                     total_str.trim().parse::<u32>(),
                 )
             {
-                return Some((total, passed));
+                total_attempted += total;
+                total_correct += passed;
+                saw_any = true;
+                continue;
             }
         }
 
@@ -95,12 +177,19 @@ fn parse_test_output(output: &str) -> Option<(u32, u32)> {
                 if let (Ok(attempted), Ok(correct)) =
                     (attempted_str.parse::<u32>(), correct_str.parse::<u32>())
                 {
-                    return Some((attempted, correct));
+                    total_attempted += attempted;
+                    total_correct += correct;
+                    saw_any = true;
                 }
             }
         }
     }
-    None
+
+    if saw_any {
+        Some((total_attempted, total_correct))
+    } else {
+        None
+    }
 }
 
 /// Run a single test file for a package.
@@ -141,12 +230,22 @@ fn run_test_file(
     if let Some((attempted, correct)) = parse_test_output(&combined) {
         let failed = attempted - correct;
         let success = failed == 0;
+        let failure_details = if success {
+            None
+        } else {
+            extract_failure_details(&combined)
+        };
 
         if matches!(format, OutputFormat::Human) {
             if success {
                 eprintln!("  {test_file}: {correct}/{attempted} passed");
             } else {
                 eprintln!("  {test_file}: {correct}/{attempted} passed ({failed} FAILED)");
+                if let Some(details) = &failure_details {
+                    for line in details.lines() {
+                        eprintln!("    {line}");
+                    }
+                }
             }
         }
 
@@ -157,24 +256,38 @@ fn run_test_file(
             passed: correct,
             failed,
             success,
+            failure_details,
         })
-    } else if !output.status.success() {
-        let msg = if !stderr.is_empty() {
-            stderr.trim().to_string()
-        } else {
+    } else {
+        // No test summary — either Maxima crashed or the test file failed to
+        // produce one. Include the combined output so the user can diagnose.
+        let tail = tail_lines(&combined, 40);
+        let prefix = if !output.status.success() {
             format!("maxima exited with {}", output.status)
+        } else {
+            format!("no test summary found in output for {test_file}")
+        };
+        let message = if tail.is_empty() {
+            prefix
+        } else {
+            format!("{prefix}\n---\n{tail}")
         };
         Err(MxpmError::TestFailed {
             package: package.to_string(),
-            message: msg,
-        })
-    } else {
-        // Maxima succeeded but no test summary found — treat as error
-        Err(MxpmError::TestFailed {
-            package: package.to_string(),
-            message: format!("no test summary found in output for {test_file}"),
+            message,
         })
     }
+}
+
+/// Return the last `n` non-empty-suffix lines of `s` joined by newlines.
+fn tail_lines(s: &str, n: usize) -> String {
+    let trimmed = s.trim_end();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    let lines: Vec<&str> = trimmed.lines().collect();
+    let start = lines.len().saturating_sub(n);
+    lines[start..].join("\n")
 }
 
 /// Detect if the current directory is an editable (symlinked) package.
@@ -275,6 +388,7 @@ pub fn run(
                         passed: 0,
                         failed: 0,
                         success: false,
+                        failure_details: Some(e.to_string()),
                     });
                 }
             }
@@ -338,12 +452,145 @@ mod tests {
         assert_eq!(correct, 1);
     }
 
+    /// When a test wrapper uses mxpm_run_tests to batch multiple sub-files,
+    /// Maxima emits one "M/N tests passed" summary per sub-file.  We must
+    /// sum them -- picking only the last (the pre-harness behaviour) would
+    /// drop everyone but the final file's count.
+    #[test]
+    fn parse_multi_summary_sums_across_batches() {
+        let output = "
+(%i1) load(\"numerics\")
+(%i2) batch(\"rtest_numerics.mac\",test)
+Testing tests/test_a.mac:
+3/3 tests passed
+Testing tests/test_b.mac:
+2/5 tests passed
+Testing tests/test_c.mac:
+4/4 tests passed
+(%o2) rtest_numerics.mac
+";
+        let (attempted, correct) = parse_test_output(output).unwrap();
+        assert_eq!(attempted, 12);
+        assert_eq!(correct, 9);
+    }
+
     #[test]
     fn parse_legacy_format() {
         let output = " 5 problems attempted; 3 correct.\n";
         let (attempted, correct) = parse_test_output(output).unwrap();
         assert_eq!(attempted, 5);
         assert_eq!(correct, 3);
+    }
+
+    #[test]
+    fn extract_failure_details_modern() {
+        let output = "\
+(%i1) load(\"foo\")
+(%o1) foo.mac
+(%i2) batch(\"rtest_foo.mac\",test)
+Testing rtest_foo.mac:
+********************** Problem 3 ***************
+Input:
+2 + 2
+
+Result:
+5
+
+This differed from the expected result:
+4
+2/3 tests passed
+(%o2) rtest_foo.mac
+";
+        let details = extract_failure_details(output).unwrap();
+        assert!(details.starts_with("********************** Problem 3"));
+        assert!(details.contains("2 + 2"));
+        assert!(details.contains("This differed from the expected result"));
+        assert!(details.trim_end().ends_with("2/3 tests passed"));
+    }
+
+    /// batch(f, test) emits a "Problem N" banner for EVERY test, passing
+    /// or failing.  Only blocks containing "This differed from the expected
+    /// result" are real failures; passing blocks end with "... Which was
+    /// correct." and must be skipped in the report.
+    #[test]
+    fn extract_failure_details_skips_passing_banners() {
+        let output = "\
+********************** Problem 1 (line 1) **********************
+
+Input:
+1 + 1
+
+Result:
+2
+
+... Which was correct.
+
+********************** Problem 2 (line 2) **********************
+
+Input:
+1 + 1
+
+Result:
+2
+
+This differed from the expected result:
+3
+
+1/2 tests passed
+";
+        let details = extract_failure_details(output).unwrap();
+        assert!(details.contains("Problem 2"));
+        assert!(!details.contains("Problem 1"));
+        assert!(details.contains("This differed"));
+    }
+
+    /// With mxpm_run_tests batching multiple sub-files, failure blocks
+    /// appear across several summary sections.  extract_failure_details
+    /// must collect every block so failures in later files are not lost.
+    #[test]
+    fn extract_failure_details_across_multiple_summaries() {
+        let output = "\
+(%i2) batch(\"rtest_foo.mac\",test)
+Testing tests/test_a.mac:
+********************** test_a.mac: Problem 2 ***************
+Input:
+2 + 2
+
+Result:
+5
+
+This differed from the expected result:
+4
+3/4 tests passed
+Testing tests/test_b.mac:
+********************** test_b.mac: Problem 1 ***************
+Input:
+foo(1)
+
+Result:
+wrong
+
+This differed from the expected result:
+right
+1/2 tests passed
+(%o2) rtest_foo.mac
+";
+        let details = extract_failure_details(output).unwrap();
+        // Both failure blocks present, with their file-prefixed headers intact.
+        assert!(details.contains("test_a.mac: Problem 2"));
+        assert!(details.contains("test_b.mac: Problem 1"));
+        assert!(details.contains("2 + 2"));
+        assert!(details.contains("foo(1)"));
+    }
+
+    #[test]
+    fn extract_failure_details_no_failure() {
+        let output = "\
+(%i2) batch(\"rtest_foo.mac\",test)
+2/2 tests passed
+(%o2) rtest_foo.mac
+";
+        assert!(extract_failure_details(output).is_none());
     }
 
     #[test]
@@ -395,5 +642,28 @@ files = ["rtest_test-pkg.mac"]
 
         let files = discover_test_files(tmp.path());
         assert!(files.is_empty());
+    }
+
+    /// The test harness shipped by `mxpm new` lives at `tests/test_harness.mac`.
+    /// The fallback glob must not pick it up as a test file: it does not start
+    /// with `rtest_`, and it lives in a subdirectory.  If this test ever
+    /// starts failing, the template or the discovery rule has drifted.
+    #[test]
+    fn discover_fallback_excludes_test_harness() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::create_dir(tmp.path().join("tests")).unwrap();
+        std::fs::write(tmp.path().join("rtest_foo.mac"), "/* test */").unwrap();
+        std::fs::write(
+            tmp.path().join("tests").join("test_harness.mac"),
+            "/* harness */",
+        )
+        .unwrap();
+        // A hypothetical future mistake: someone drops the harness at pkg root.
+        // Still excluded because it does not start with `rtest_`.
+        std::fs::write(tmp.path().join("test_harness.mac"), "/* harness */").unwrap();
+
+        let files = discover_test_files(tmp.path());
+        assert_eq!(files, vec!["rtest_foo.mac"]);
+        assert!(!files.iter().any(|f| f.contains("test_harness")));
     }
 }
