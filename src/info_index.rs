@@ -314,6 +314,9 @@ fn find_split_files(data: &[u8], main_filename: &str) -> Vec<String> {
 
 /// Parse the index menu in the last node to extract topic references.
 /// Returns a sorted map of `{topic_name → TopicRef}`.
+/// The character Info uses to quote node names that contain punctuation.
+const INFO_QUOTE: char = '\u{7f}';
+
 fn parse_index_menu(data: &[u8], index_node_name: &str) -> BTreeMap<String, TopicRef> {
     let text = String::from_utf8_lossy(data);
     let mut topics = BTreeMap::new();
@@ -357,8 +360,11 @@ fn parse_index_menu(data: &[u8], index_node_name: &str) -> BTreeMap<String, Topi
 
     for entry in &entries {
         if let Some(caps) = entry_re.captures(entry) {
-            let topic_name = caps[1].to_string();
-            let node_name = caps[2].trim().to_string();
+            // makeinfo quotes names containing `.`, `:` or `,` (e.g. a node
+            // named after `f (x, ..., y)`) with DEL characters; strip them so
+            // the node name matches the node table.
+            let topic_name = caps[1].trim_matches(INFO_QUOTE).to_string();
+            let node_name = caps[2].trim().trim_matches(INFO_QUOTE).to_string();
             let line_offset: usize = caps[3].parse().unwrap_or(0);
             topics.insert(
                 topic_name,
@@ -674,6 +680,16 @@ mod tests {
         let trans = &topics["transmogrify"];
         assert_eq!(trans.node_name, "Definitions for MYTOPIC");
         assert_eq!(trans.line_offset, 6);
+    }
+
+    #[test]
+    fn test_parse_index_menu_quoted_node_name() {
+        // makeinfo wraps node names with punctuation in DEL (0x7f) characters
+        let data = b"\x1f\nFile: test.info,  Node: Function index,  Prev: Defs\n\n* Menu:\n\n* f:                                     \x7fFunction f x ... y\x7f.\n                                                                (line 3)\n* g:                                     Function g x.\n                                                                (line 3)\n\n";
+        let topics = parse_index_menu(data, "Function index");
+        assert_eq!(topics["f"].node_name, "Function f x ... y");
+        assert_eq!(topics["f"].line_offset, 3);
+        assert_eq!(topics["g"].node_name, "Function g x");
     }
 
     #[test]
