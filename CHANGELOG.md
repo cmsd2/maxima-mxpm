@@ -12,6 +12,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+## [0.8.2] - 2026-10-19
+
+### Fixed
+
+- `mxpm doc build` lost every function after the first in each section of a Markdown manual built from `<!-- include: -->` files: included files were joined without a blank line, so Pandoc merged a page's `### Function:` heading into the previous page's last paragraph, dropping its `@deffn` and its entry in the Maxima help index. Included files are now separated by blank lines
+- The help-index generator (`mxpm doc build` / `mxpm doc index`) dropped functions whose Info node name makeinfo quotes, such as a signature containing `...`, `:` or `,`; the quote characters are now stripped before the node lookup
+
 ## [0.8.1] - 2026-04-24
 
 ### Added
