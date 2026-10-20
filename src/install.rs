@@ -231,36 +231,58 @@ pub fn list_installed(config: &Config) -> Result<Vec<InstallMetadata>, MxpmError
 /// the entire package directory.
 pub fn remove_package(name: &str, config: &Config) -> Result<(), MxpmError> {
     let package_dir = crate::paths::package_dir(config, name)?;
-    let metadata_path = package_dir.join(".mxpm.json");
 
-    if !metadata_path.exists() {
+    if is_link(&package_dir) {
+        // Editable install. Remove the link first, so that if it fails the
+        // install is left intact rather than half removed; then remove the
+        // metadata the install wrote into the source directory. A link whose
+        // metadata is already gone (an interrupted removal) is removed too.
+        let target = std::fs::read_link(&package_dir).ok();
+        remove_dir_link(&package_dir).map_err(MxpmError::Io)?;
+        if let Some(target) = target {
+            let _ = std::fs::remove_file(target.join(".mxpm.json"));
+        }
+        return Ok(());
+    }
+
+    if !package_dir.join(".mxpm.json").exists() {
         return Err(MxpmError::NotInstalled {
             name: name.to_string(),
         });
     }
-
-    // Check if this is an editable install (symlink)
-    let is_symlink = package_dir
-        .symlink_metadata()
-        .map(|m| m.file_type().is_symlink())
-        .unwrap_or(false);
-
-    if is_symlink {
-        // Remove .mxpm.json from the source directory (the symlink target)
-        let _ = std::fs::remove_file(&metadata_path);
-        // Remove the symlink itself
-        std::fs::remove_file(&package_dir).map_err(MxpmError::Io)?;
-    } else {
-        std::fs::remove_dir_all(&package_dir).map_err(MxpmError::Io)?;
-    }
-
+    std::fs::remove_dir_all(&package_dir).map_err(MxpmError::Io)?;
     Ok(())
 }
 
 /// Check whether a package is currently installed.
+///
+/// An editable install's link counts even without its metadata, so a link
+/// left by an interrupted removal can still be removed or reinstalled.
 pub fn is_installed(name: &str, config: &Config) -> Result<bool, MxpmError> {
     let package_dir = crate::paths::package_dir(config, name)?;
-    Ok(package_dir.join(".mxpm.json").exists())
+    Ok(package_dir.join(".mxpm.json").exists() || is_link(&package_dir))
+}
+
+fn is_link(path: &Path) -> bool {
+    path.symlink_metadata()
+        .map(|m| m.file_type().is_symlink())
+        .unwrap_or(false)
+}
+
+/// Remove a symlink to a directory without touching what it points to.
+///
+/// Unix symlinks are removed like files. On Windows a directory symlink is a
+/// directory entry: `remove_file` fails on it with "Access is denied", and it
+/// must be removed with `remove_dir` (which removes only the link).
+fn remove_dir_link(path: &Path) -> std::io::Result<()> {
+    #[cfg(windows)]
+    {
+        std::fs::remove_dir(path)
+    }
+    #[cfg(not(windows))]
+    {
+        std::fs::remove_file(path)
+    }
 }
 
 /// Search the index for packages matching a query string.
@@ -518,5 +540,78 @@ mod tests {
         };
         remove_package("foo", &config).unwrap();
         assert!(!pkg_dir.exists());
+    }
+
+    /// A package source directory with a manifest, as `mxpm install --path` expects.
+    fn source_package(root: &Path, name: &str) -> std::path::PathBuf {
+        let src = root.join(format!("src-{name}"));
+        std::fs::create_dir_all(&src).unwrap();
+        std::fs::write(
+            src.join("manifest.toml"),
+            format!(
+                "[package]\nname = \"{name}\"\nversion = \"1.0.0\"\ndescription = \"d\"\n\
+                 license = \"MIT\"\nentry = \"{name}.mac\"\n"
+            ),
+        )
+        .unwrap();
+        std::fs::write(src.join(format!("{name}.mac")), "/* code */").unwrap();
+        src
+    }
+
+    fn userdir_config(root: &Path) -> Config {
+        Config {
+            maxima_userdir: Some(root.join("userdir")),
+            ..Config::default()
+        }
+    }
+
+    #[test]
+    fn remove_editable_removes_only_the_link() {
+        let dir = tempfile::tempdir().unwrap();
+        let src = source_package(dir.path(), "foo");
+        let config = userdir_config(dir.path());
+        install_local_package("foo", &src, true, &config).unwrap();
+        let link = dir.path().join("userdir/foo");
+        assert!(is_link(&link));
+        assert!(src.join(".mxpm.json").exists());
+
+        remove_package("foo", &config).unwrap();
+
+        assert!(link.symlink_metadata().is_err(), "link should be gone");
+        assert!(src.join("foo.mac").exists(), "source files must survive");
+        assert!(src.join("manifest.toml").exists());
+        assert!(
+            !src.join(".mxpm.json").exists(),
+            "metadata should be cleaned up"
+        );
+    }
+
+    #[test]
+    fn editable_can_be_reinstalled() {
+        let dir = tempfile::tempdir().unwrap();
+        let src = source_package(dir.path(), "foo");
+        let config = userdir_config(dir.path());
+        install_local_package("foo", &src, true, &config).unwrap();
+        // What `mxpm install --path . --editable --reinstall` does.
+        assert!(is_installed("foo", &config).unwrap());
+        remove_package("foo", &config).unwrap();
+        install_local_package("foo", &src, true, &config).unwrap();
+        assert!(is_installed("foo", &config).unwrap());
+        assert!(src.join("foo.mac").exists());
+    }
+
+    #[test]
+    fn link_without_metadata_counts_as_installed_and_can_be_removed() {
+        let dir = tempfile::tempdir().unwrap();
+        let src = source_package(dir.path(), "foo");
+        let config = userdir_config(dir.path());
+        install_local_package("foo", &src, true, &config).unwrap();
+        // An interrupted removal used to leave exactly this behind.
+        std::fs::remove_file(src.join(".mxpm.json")).unwrap();
+
+        assert!(is_installed("foo", &config).unwrap());
+        remove_package("foo", &config).unwrap();
+        assert!(!is_installed("foo", &config).unwrap());
+        assert!(src.join("foo.mac").exists());
     }
 }
