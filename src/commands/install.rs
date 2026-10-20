@@ -87,7 +87,7 @@ fn run_local(
                 eprintln!("Version: {version}");
             }
             eprintln!("Done.");
-            println!("Use: load(\"{name}\");");
+            println!("Use: load(\"{}\");", load_name(name, config));
         }
     }
 
@@ -156,7 +156,7 @@ async fn run_registry(
                 eprintln!("Version: {version}");
             }
             eprintln!("Done.");
-            println!("Use: load(\"{name}\");");
+            println!("Use: load(\"{}\");", load_name(name, config));
         }
     }
 
@@ -200,7 +200,7 @@ fn maybe_install_quicklisp_deps(name: &str, yes: bool, config: &Config) -> Resul
                 ql.install_systems(&systems, config.sbcl_dynamic_space_size())?;
                 eprintln!("  CL dependencies installed.");
             } else {
-                print_quicklisp_preinstall_hint(&systems, name);
+                print_quicklisp_preinstall_hint(&systems, &load_name(name, config));
             }
         }
         DetectResult::NoQuicklisp => {
@@ -209,7 +209,7 @@ fn maybe_install_quicklisp_deps(name: &str, yes: bool, config: &Config) -> Resul
             eprintln!("  To set up Quicklisp:");
             eprintln!("    mxpm setup quicklisp");
             eprintln!();
-            print_quicklisp_preinstall_hint(&systems, name);
+            print_quicklisp_preinstall_hint(&systems, &load_name(name, config));
         }
         DetectResult::NoSbcl => {
             eprintln!();
@@ -217,11 +217,30 @@ fn maybe_install_quicklisp_deps(name: &str, yes: bool, config: &Config) -> Resul
             eprintln!("  Install SBCL first:");
             eprintln!("    macOS:  brew install sbcl");
             eprintln!("    Linux:  apt install sbcl");
+            eprintln!(
+                "    Windows: the Maxima installer includes SBCL; add its bin folder to PATH"
+            );
             eprintln!();
             eprintln!("  Then run: mxpm setup quicklisp");
         }
     }
     Ok(())
+}
+
+/// What to pass to Maxima's `load()` for an installed package: the entry
+/// file's name without its extension, which is what Maxima searches for.
+/// Usually that is the package name, but not always: the entry of
+/// `maxima-core-docs` is `maxima_core_docs.mac`.
+fn load_name(name: &str, config: &Config) -> String {
+    paths::maxima_userdir(config)
+        .ok()
+        .and_then(|dir| manifest::load_manifest(&dir.join(name)))
+        .and_then(|m| {
+            Path::new(&m.package.entry)
+                .file_stem()
+                .map(|s| s.to_string_lossy().into_owned())
+        })
+        .unwrap_or_else(|| name.to_string())
 }
 
 fn confirm_reinstall(name: &str, yes: bool, format: OutputFormat) -> Result<bool, MxpmError> {

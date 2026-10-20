@@ -73,10 +73,83 @@ impl QuicklispSetup {
     }
 }
 
+/// Find an executable on `PATH`, like the `which` command.
+///
+/// On Windows, executables carry an extension (`sbcl.exe`), so each `PATH`
+/// directory is tried with every extension in `PATHEXT`.
 pub fn which(name: &str) -> Option<PathBuf> {
-    std::env::var_os("PATH").and_then(|paths| {
-        std::env::split_paths(&paths)
-            .map(|dir| dir.join(name))
-            .find(|p| p.exists())
+    let paths = std::env::var_os("PATH")?;
+    which_in(name, &paths, &executable_extensions())
+}
+
+/// [`which`] with an explicit search path and list of extensions to try.
+pub fn which_in(name: &str, paths: &std::ffi::OsStr, extensions: &[String]) -> Option<PathBuf> {
+    std::env::split_paths(paths).find_map(|dir| {
+        extensions
+            .iter()
+            .map(|ext| dir.join(format!("{name}{ext}")))
+            .find(|p| p.is_file())
     })
+}
+
+/// Suffixes that make a file name executable: none on Unix, `PATHEXT` on
+/// Windows (`.COM;.EXE;.BAT;.CMD` if unset).
+fn executable_extensions() -> Vec<String> {
+    if cfg!(windows) {
+        let pathext = std::env::var("PATHEXT").unwrap_or_else(|_| ".COM;.EXE;.BAT;.CMD".into());
+        pathext
+            .split(';')
+            .filter(|e| !e.is_empty())
+            .map(|e| e.to_ascii_lowercase())
+            .collect()
+    } else {
+        vec![String::new()]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn exts(list: &[&str]) -> Vec<String> {
+        list.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn finds_executable_with_extension() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("sbcl.exe"), "").unwrap();
+        let found = which_in("sbcl", dir.path().as_os_str(), &exts(&[".com", ".exe"]));
+        assert_eq!(found, Some(dir.path().join("sbcl.exe")));
+    }
+
+    #[test]
+    fn finds_bare_name_when_no_extension_is_needed() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("sbcl"), "").unwrap();
+        let found = which_in("sbcl", dir.path().as_os_str(), &exts(&[""]));
+        assert_eq!(found, Some(dir.path().join("sbcl")));
+    }
+
+    #[test]
+    fn searches_path_directories_in_order() {
+        let first = tempfile::tempdir().unwrap();
+        let second = tempfile::tempdir().unwrap();
+        std::fs::write(first.path().join("sbcl.exe"), "").unwrap();
+        std::fs::write(second.path().join("sbcl.exe"), "").unwrap();
+        let paths = std::env::join_paths([second.path(), first.path()]).unwrap();
+        let found = which_in("sbcl", &paths, &exts(&[".exe"]));
+        assert_eq!(found, Some(second.path().join("sbcl.exe")));
+    }
+
+    #[test]
+    fn ignores_directories_and_missing_files() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir(dir.path().join("sbcl")).unwrap();
+        assert_eq!(which_in("sbcl", dir.path().as_os_str(), &exts(&[""])), None);
+        assert_eq!(
+            which_in("sbcl", dir.path().as_os_str(), &exts(&[".exe"])),
+            None
+        );
+    }
 }

@@ -18,7 +18,8 @@ pub fn quicklisp(yes: bool, format: OutputFormat, config: &Config) -> Result<(),
             return Err(MxpmError::Io(std::io::Error::other(
                 "SBCL not found in PATH. Install SBCL first:\n  \
                  macOS:  brew install sbcl\n  \
-                 Linux:  apt install sbcl  (or your distro's package manager)",
+                 Linux:  apt install sbcl  (or your distro's package manager)\n  \
+                 Windows: the Maxima installer includes SBCL; add its bin folder to PATH",
             )));
         }
         DetectResult::NoQuicklisp => {}

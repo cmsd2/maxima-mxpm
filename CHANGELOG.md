@@ -12,6 +12,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+## [0.8.3] - 2026-10-20
+
+### Fixed
+
+- Windows: SBCL was never found, so `mxpm setup quicklisp` and the Quicklisp dependency step of `mxpm install` always reported "SBCL not found". The PATH lookup only tried the bare name; it now tries each `PATHEXT` extension (`sbcl.exe`). The SBCL bundled with the Maxima installer works once its `bin` folder is on PATH, and the not-found message now says so
+- Windows: removing or `--reinstall`ing an editable install failed with "Access is denied", because a directory symlink was removed as a file. It is now removed with `remove_dir`, which deletes only the link
+- Removing an editable install deleted its `.mxpm.json` before removing the link, so a failed removal left a link that `mxpm` no longer listed and could not reinstall over. The link is now removed first, and a link without metadata counts as installed so it can be removed or reinstalled
+- The `Use: load(...)` hint after install printed the package name, which fails when the manifest's entry file is named differently (`maxima-core-docs` loads as `maxima_core_docs`). It now uses the entry file's name
+
 ## [0.8.2] - 2026-10-19
 
 ### Fixed
