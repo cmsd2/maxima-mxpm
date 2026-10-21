@@ -12,6 +12,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+## [0.8.4] - 2026-10-21
+
+### Security
+
+- Updated `rustls-webpki` to 0.103.16 and `webpki-roots` to 1.0.10 in response to the compromised eMudhra intermediate CA keys. The bundled root store no longer trusts `emSign ECC Root CA - G3`. See https://emudhra.we-have-a-problem.com/
+
 ## [0.8.3] - 2026-10-20
 
 ### Fixed
