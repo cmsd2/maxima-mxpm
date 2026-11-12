@@ -79,3 +79,17 @@ jobs:
         with:
           files: mxpm-*
           generate_release_notes: true
+
+      # A release this workflow's GITHUB_TOKEN publishes fires no
+      # release event, so the dispatch lives here.
+      - name: Tell cmsd2/homebrew-tap to bump
+        if: ${{ !contains(github.ref_name, '-') }}
+        env:
+          # Fine-grained PAT: cmsd2/homebrew-tap only, Contents read/write.
+          GH_TOKEN: ${{ secrets.TAP_DISPATCH_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::warning::TAP_DISPATCH_TOKEN is not set; the tap's daily run will pick this release up"
+            exit 0
+          fi
+          gh api repos/cmsd2/homebrew-tap/dispatches -f event_type=mxpm-released
