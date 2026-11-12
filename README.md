@@ -19,7 +19,15 @@ auto-scans on startup. No path configuration needed — just
 
 ## Install
 
-Download a binary from the [releases page](https://github.com/cmsd2/maxima-mxpm/releases)
+With [Homebrew](https://brew.sh) on macOS or Linux:
+
+```bash
+brew tap cmsd2/tap
+brew trust cmsd2/tap
+brew install cmsd2/tap/mxpm
+```
+
+Or download a binary from the [releases page](https://github.com/cmsd2/maxima-mxpm/releases)
 and place it on your PATH.
 
 Or build from source:
