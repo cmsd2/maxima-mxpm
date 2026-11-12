@@ -429,7 +429,12 @@ fn strip_repl_marker<'a>(line: &'a str, marker: &str) -> Option<&'a str> {
 }
 
 /// Decode Texinfo URL-encoded labels (e.g. `_005f` -> `_`, `_0025` -> `%`).
-fn decode_texinfo_label(label: &str) -> String {
+///
+/// Texinfo encodes special characters in node names and anchor references
+/// as `_XXXX` where `XXXX` is the four-digit hex codepoint. Every `_XXXX`
+/// in a label is an encoding, so this decodes all of them. Use
+/// [`decode_texinfo_text`] for running text.
+pub(super) fn decode_texinfo_label(label: &str) -> String {
     let mut result = String::with_capacity(label.len());
     let mut chars = label.chars();
     while let Some(c) = chars.next() {
@@ -450,6 +455,42 @@ fn decode_texinfo_label(label: &str) -> String {
             result.push(c);
         }
     }
+    result
+}
+
+/// Decode the label encoding where it leaks into running text and code.
+///
+/// Cross-references to encoded identifiers come through the XML as, for
+/// example, `gamma_005fincomplete_005fregularized`. Text can also hold an
+/// underscore followed by four hex digits that is not an encoding, such as
+/// the random string `nxuo4x28s6wocvjw_99211646` in the plotting docs. Texinfo
+/// only encodes characters that are not letters or digits, and the manual's
+/// identifiers are ASCII, so this decodes `_00XX` only when it stands for
+/// ASCII punctuation and leaves everything else as written.
+pub(super) fn decode_texinfo_text(text: &str) -> String {
+    let mut result = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(i) = rest.find('_') {
+        result.push_str(&rest[..i]);
+        let after = &rest[i + 1..];
+        let decoded = after
+            .get(..4)
+            .filter(|hex| hex.starts_with("00"))
+            .and_then(|hex| u8::from_str_radix(&hex[2..], 16).ok())
+            .map(char::from)
+            .filter(char::is_ascii_punctuation);
+        match decoded {
+            Some(c) => {
+                result.push(c);
+                rest = &after[4..];
+            }
+            None => {
+                result.push('_');
+                rest = after;
+            }
+        }
+    }
+    result.push_str(rest);
     result
 }
 
@@ -481,5 +522,31 @@ mod tests {
         assert_eq!(decode_texinfo_label("_0025_0025"), "%%");
         assert_eq!(decode_texinfo_label("simple"), "simple");
         assert_eq!(decode_texinfo_label("_003d"), "=");
+    }
+
+    #[test]
+    fn test_decode_texinfo_text() {
+        assert_eq!(
+            decode_texinfo_text("pdf_005fgeneral_005ffinite_005fdiscrete"),
+            "pdf_general_finite_discrete"
+        );
+        assert_eq!(decode_texinfo_text("_0025piargs"), "%piargs");
+        // An encoding right after a literal underscore
+        assert_eq!(decode_texinfo_text("a__005fb"), "a__b");
+        // Hex that does not stand for ASCII punctuation stays as written
+        assert_eq!(
+            decode_texinfo_text("nxuo4x28s6wocvjw_99211646"),
+            "nxuo4x28s6wocvjw_99211646"
+        );
+        assert_eq!(decode_texinfo_text("x_0041"), "x_0041");
+        assert_eq!(
+            decode_texinfo_text("2_49_93___2024_07_04"),
+            "2_49_93___2024_07_04"
+        );
+        // Too short, or at the end of the text
+        assert_eq!(decode_texinfo_text("a_005"), "a_005");
+        assert_eq!(decode_texinfo_text("trailing_"), "trailing_");
+        // Multibyte text after an underscore
+        assert_eq!(decode_texinfo_text("x_é_005f"), "x_é_");
     }
 }
