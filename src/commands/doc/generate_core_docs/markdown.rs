@@ -1,5 +1,7 @@
 //! XML element to Markdown conversion and text helpers.
 
+use super::xml_parser::{decode_texinfo_label, decode_texinfo_text};
+
 /// Convert a `<definitionitem>` node's children to markdown.
 pub(super) fn definition_body_to_markdown(node: &roxmltree::Node) -> String {
     let mut out = String::new();
@@ -19,19 +21,109 @@ pub(super) fn convert_children_to_md(node: &roxmltree::Node, out: &mut String, l
     }
 }
 
-/// Push text content, converting inline `(Figure name)` references to markdown images.
+/// Push text content, converting inline `(Figure name)` references to markdown
+/// images and decoding Texinfo `_00XX` encoded identifier characters
+/// (e.g. `gamma_005fincomplete_005fregularized` → `gamma_incomplete_regularized`).
 fn push_text_with_figures(text: &str, out: &mut String) {
+    let decoded = decode_texinfo_text(text);
     let re = regex::Regex::new(r"\(Figure\s+(\S+?)(?::\s*([^)]+))?\)").unwrap();
     let mut last = 0;
-    for caps in re.captures_iter(text) {
+    for caps in re.captures_iter(&decoded) {
         let m = caps.get(0).unwrap();
-        out.push_str(&text[last..m.start()]);
+        out.push_str(&decoded[last..m.start()]);
         let file = caps.get(1).unwrap().as_str();
         let desc = caps.get(2).map(|d| d.as_str().trim()).unwrap_or(file);
         out.push_str(&format!("![{desc}](figures/{file}.png)"));
         last = m.end();
     }
-    out.push_str(&text[last..]);
+    out.push_str(&decoded[last..]);
+}
+
+/// Rewrite plain-TeX math constructs (as used in Maxima's `@tex` blocks)
+/// into LaTeX equivalents that KaTeX can render.
+///
+/// Currently handles:
+///   - `\cases{ … }` → `\begin{cases} … \end{cases}`
+///   - `\eqalign{ … }` → `\begin{aligned} … \end{aligned}`
+///
+/// Brace matching is depth-aware so nested groups (e.g. `{n \over 2}` inside
+/// the cases body) are preserved correctly.  KaTeX natively supports `\over`,
+/// `\cr`, and `\displaystyle`, so those are passed through unchanged.
+pub(super) fn rewrite_plain_tex(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let bytes = s.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if let Some((cmd_len, env_name)) = match_plain_tex_command(bytes, i) {
+            // cmd_len is the length of e.g. `\cases{` including the `{`, so
+            // the opening brace lives at `i + cmd_len - 1`.  find_matching_brace
+            // expects to be called *at* the `{`, hence the offset.
+            let open_brace = i + cmd_len - 1;
+            if let Some(body_end) = find_matching_brace(bytes, open_brace) {
+                out.push_str("\\begin{");
+                out.push_str(env_name);
+                out.push('}');
+                // Recursively rewrite the body so nested \cases also work.
+                let body = std::str::from_utf8(&bytes[open_brace + 1..body_end])
+                    .expect("input is valid UTF-8");
+                out.push_str(&rewrite_plain_tex(body));
+                out.push_str("\\end{");
+                out.push_str(env_name);
+                out.push('}');
+                i = body_end + 1;
+                continue;
+            }
+        }
+        // Default: copy the next char (UTF-8 safe — find the next char boundary).
+        let next = (i + 1..=bytes.len())
+            .find(|&j| j == bytes.len() || (bytes[j] & 0xC0) != 0x80)
+            .unwrap_or(bytes.len());
+        out.push_str(std::str::from_utf8(&bytes[i..next]).expect("char boundary"));
+        i = next;
+    }
+    out
+}
+
+/// If the byte slice starting at `i` is `\cases{` or `\eqalign{`, return
+/// `(length-up-to-and-including-{, environment-name)`.
+fn match_plain_tex_command(bytes: &[u8], i: usize) -> Option<(usize, &'static str)> {
+    for (cmd, env) in &[("\\cases{", "cases"), ("\\eqalign{", "aligned")] {
+        let cmd_bytes = cmd.as_bytes();
+        if i + cmd_bytes.len() <= bytes.len() && &bytes[i..i + cmd_bytes.len()] == cmd_bytes {
+            return Some((cmd_bytes.len(), env));
+        }
+    }
+    None
+}
+
+/// Given a position pointing at `{`, return the position of the matching `}`
+/// (counting nested braces).  Returns `None` if unmatched.  Treats `\{` and
+/// `\}` as escaped braces that don't affect depth.
+fn find_matching_brace(bytes: &[u8], open: usize) -> Option<usize> {
+    if open >= bytes.len() || bytes[open] != b'{' {
+        return None;
+    }
+    let mut depth = 1i32;
+    let mut i = open + 1;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'\\' if i + 1 < bytes.len() => {
+                // Skip the escaped character — `\{`, `\}`, `\\`, etc.
+                i += 2;
+                continue;
+            }
+            b'{' => depth += 1,
+            b'}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(i);
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    None
 }
 
 fn convert_element_to_md(node: &roxmltree::Node, out: &mut String, list_depth: usize) {
@@ -58,7 +150,7 @@ fn convert_element_to_md(node: &roxmltree::Node, out: &mut String, list_depth: u
         "code" | "kbd" | "samp" | "command" | "env" | "file" | "option" => {
             out.push('`');
             let text = collect_text(node);
-            out.push_str(text.trim());
+            out.push_str(&decode_texinfo_text(text.trim()));
             out.push('`');
         }
         "var" | "emph" | "i" | "dfn" => {
@@ -74,8 +166,29 @@ fn convert_element_to_md(node: &roxmltree::Node, out: &mut String, list_depth: u
         "math" => {
             out.push('$');
             let text = collect_text(node);
-            out.push_str(text.trim());
+            out.push_str(&rewrite_plain_tex(text.trim()));
             out.push('$');
+        }
+        "tex" => {
+            // `@tex … @end tex` blocks contain raw plain-TeX intended for the
+            // LaTeX renderer.  Emit as display-math so KaTeX picks it up, and
+            // rewrite plain-TeX constructs (\cases, \eqalign) into LaTeX form
+            // that KaTeX understands.  Strip any outer `$$…$$` or `$…$` the
+            // author already wrote so we don't double-wrap.
+            let text = collect_raw_text(node);
+            let trimmed = text.trim();
+            let inner = trimmed
+                .strip_prefix("$$")
+                .and_then(|s| s.strip_suffix("$$"))
+                .or_else(|| trimmed.strip_prefix('$').and_then(|s| s.strip_suffix('$')))
+                .unwrap_or(trimmed)
+                .trim();
+            if !out.ends_with('\n') {
+                out.push('\n');
+            }
+            out.push_str("\n$$\n");
+            out.push_str(&rewrite_plain_tex(inner));
+            out.push_str("\n$$\n");
         }
         "sc" => {
             let text = collect_text(node);
@@ -84,12 +197,12 @@ fn convert_element_to_md(node: &roxmltree::Node, out: &mut String, list_depth: u
         "ref" | "xref" | "pxref" => {
             if let Some(label) = node.attribute("label") {
                 out.push('`');
-                out.push_str(label);
+                out.push_str(&decode_texinfo_label(label));
                 out.push('`');
             } else {
                 let text = collect_text(node);
                 out.push('`');
-                out.push_str(text.trim());
+                out.push_str(&decode_texinfo_text(text.trim()));
                 out.push('`');
             }
         }
@@ -344,7 +457,7 @@ pub(super) fn convert_raw_texinfo(text: &str, out: &mut String) {
         && let Some(content) = rest.strip_suffix('}')
     {
         out.push('$');
-        out.push_str(content);
+        out.push_str(&rewrite_plain_tex(content));
         out.push('$');
         return;
     }
@@ -357,9 +470,9 @@ pub(super) fn convert_raw_texinfo(text: &str, out: &mut String) {
             .strip_suffix("@end displaymath")
             .unwrap_or(text)
             .trim();
-        out.push_str("\n$$");
-        out.push_str(inner);
-        out.push_str("$$\n");
+        out.push_str("\n$$\n");
+        out.push_str(&rewrite_plain_tex(inner));
+        out.push_str("\n$$\n");
         return;
     }
 
@@ -461,6 +574,10 @@ pub(super) fn replace_texinfo_entities(xml: &str) -> String {
         .replace("&minus;", "-")
         .replace("&nbsp;", " ")
         .replace("&period;", ".")
+        // `@.` / `&noeos;` — texinfo "not end of sentence" marker; just a
+        // typesetting hint to suppress the wider end-of-sentence spacing.
+        // Discard entirely in the markdown output.
+        .replace("&noeos;", "")
 }
 
 #[cfg(test)]
@@ -497,5 +614,59 @@ mod tests {
         let mut out = String::new();
         convert_raw_texinfo("@math{x^2 + y^2}", &mut out);
         assert_eq!(out, "$x^2 + y^2$");
+    }
+
+    #[test]
+    fn test_rewrite_plain_tex_cases() {
+        // The cdf_chi2 formula — \cases{ a & b \cr c & d }, with nested {…}
+        // for {n\over 2} and inline math $x > 0$ inside.
+        let input = "F(x; n) = \\cases{ 1 - Q\\left(\\displaystyle{n\\over 2}, {x\\over 2}\\right) & $x > 0$ \\cr 0 & otherwise }";
+        let expected = "F(x; n) = \\begin{cases} 1 - Q\\left(\\displaystyle{n\\over 2}, {x\\over 2}\\right) & $x > 0$ \\cr 0 & otherwise \\end{cases}";
+        assert_eq!(rewrite_plain_tex(input), expected);
+    }
+
+    #[test]
+    fn test_rewrite_plain_tex_eqalign() {
+        let input = "\\eqalign{ a &= b \\cr c &= d }";
+        let expected = "\\begin{aligned} a &= b \\cr c &= d \\end{aligned}";
+        assert_eq!(rewrite_plain_tex(input), expected);
+    }
+
+    #[test]
+    fn test_rewrite_plain_tex_passthrough() {
+        // No plain-TeX constructs → input is unchanged.
+        let input = "x^2 + \\frac{a}{b} + \\sin(\\theta)";
+        assert_eq!(rewrite_plain_tex(input), input);
+    }
+
+    #[test]
+    fn test_rewrite_plain_tex_two_cases() {
+        // Two consecutive \cases blocks in the same string.
+        let input = "\\cases{a}\\cases{b}";
+        let expected = "\\begin{cases}a\\end{cases}\\begin{cases}b\\end{cases}";
+        assert_eq!(rewrite_plain_tex(input), expected);
+    }
+
+    #[test]
+    fn test_rewrite_plain_tex_unmatched_cases() {
+        // Unmatched \cases{ — leave the text unchanged, don't loop forever.
+        let input = "\\cases{ no closing brace";
+        assert_eq!(rewrite_plain_tex(input), input);
+    }
+
+    #[test]
+    fn test_push_text_with_figures_decodes_underscores() {
+        // The texinfo `_005f` → `_` decoding kicks in for prose too.
+        let mut out = String::new();
+        push_text_with_figures("See also gamma_005fincomplete_005fregularized.", &mut out);
+        assert_eq!(out, "See also gamma_incomplete_regularized.");
+    }
+
+    #[test]
+    fn test_push_text_with_figures_preserves_non_encoded_underscores() {
+        // Underscores that aren't followed by valid 4-hex digits stay.
+        let mut out = String::new();
+        push_text_with_figures("var_with_underscores and snake_case", &mut out);
+        assert_eq!(out, "var_with_underscores and snake_case");
     }
 }
