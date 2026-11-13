@@ -67,7 +67,8 @@ fn discover_test_files(pkg_dir: &Path) -> Vec<String> {
 
 /// Extract the failure portions of Maxima test output.
 ///
-/// `batch(file, test)` prints a block per failing test:
+/// `batch(file, test)` prints a block per test, starting with a Problem
+/// banner.  A failing test's block usually reads:
 ///
 /// ```text
 /// ********************** Problem 3 ***************
@@ -80,6 +81,14 @@ fn discover_test_files(pkg_dir: &Path) -> Vec<String> {
 /// This differed from the expected result:
 /// <expected>
 /// ```
+///
+/// Maxima master (after 5.50) fails a test in two more ways, and neither
+/// prints "This differed": a question the test's `with_answers()` list
+/// answers wrongly or not at all prints the with_answers message even when
+/// the result matched, and a file ending without an expected result prints
+/// "batch: missing expected result in test script.".  So a block counts as
+/// a failure unless it says the test passed ("... Which was correct.") or
+/// failed as a known bug ("This is a known error").
 ///
 /// When the test wrapper uses mxpm_run_tests to batch multiple sub-files,
 /// the output contains several of these regions, each terminated by a
@@ -112,10 +121,11 @@ fn extract_failure_details(output: &str) -> Option<String> {
                 i += 1;
             }
             let block: String = lines[start..i.min(lines.len())].join("\n");
-            // Keep only blocks that are actual failures.  Passing tests also
-            // emit a Problem banner but end with "... Which was correct."
-            // Failures include "This differed from the expected result:".
-            if block.contains("This differed from the expected result") {
+            // Passing tests also emit a Problem banner; skip them and
+            // known bugs, and keep every other block (see above).
+            let passed =
+                block.contains("... Which was correct") || block.contains("This is a known error");
+            if !passed {
                 blocks.push(block.trim_end().to_string());
             }
         } else {
@@ -581,6 +591,84 @@ right
         assert!(details.contains("test_b.mac: Problem 1"));
         assert!(details.contains("2 + 2"));
         assert!(details.contains("foo(1)"));
+    }
+
+    /// Output of Maxima master (after 5.50).  A question that the code
+    /// under test catches leaves a matching result, and a file ending
+    /// without an expected result: neither block says "This differed",
+    /// but both are failures.
+    #[test]
+    fn extract_failure_details_with_answers_and_missing_expected() {
+        let output = "\
+********************** rtest_wa.mac: Problem 1 (line 2) **********************
+
+Input:
+errcatch(asksign(c))
+
+
+Result:
+Is c positive, negative or zero?
+A question in a test file needs an answer from with_answers.
+The missing answer is sign(c) = ...
+[]
+
+Is c positive, negative or zero?
+A question in a test file needs an answer from with_answers.
+The missing answer is sign(c) = ...
+
+********************** rtest_wa.mac: Problem 2 (line 5) **********************
+
+Input:
+with_answers([sign(a) = pos], asksign(a))
+
+
+Result:
+pos
+
+... Which was correct.
+
+********************** rtest_wa.mac: Problem 3 (line 9) **********************
+
+Input:
+2 + 2
+
+
+Result:
+4
+
+batch: missing expected result in test script.
+
+1/3 tests passed
+
+The following 2 problems failed: (1 3)
+";
+        let details = extract_failure_details(output).unwrap();
+        assert!(details.contains("Problem 1"));
+        assert!(details.contains("The missing answer is sign(c) = ..."));
+        assert!(!details.contains("Problem 2"));
+        assert!(details.contains("Problem 3"));
+        assert!(details.contains("batch: missing expected result"));
+    }
+
+    /// A known bug that still fails is not a failure to report.
+    #[test]
+    fn extract_failure_details_skips_known_errors() {
+        let output = "\
+********************** Problem 1 (line 1) **********************
+
+Input:
+f(x)
+
+
+Result:
+g(x)
+
+This is a known error in Maxima or in SBCL. The correct result is:
+h(x)
+
+1/1 tests passed (not counting 1 expected errors)
+";
+        assert!(extract_failure_details(output).is_none());
     }
 
     #[test]
