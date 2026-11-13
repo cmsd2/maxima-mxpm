@@ -12,6 +12,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+## [0.8.5] - 2026-11-13
+
+### Added
+
+- The release job notifies `cmsd2/homebrew-tap`, so `brew upgrade mxpm` picks up a new release the same day. The README shows the Homebrew install
+
+### Fixed
+
+- `mxpm test` showed no details for two kinds of failure on Maxima master (after 5.50), which answers test questions with `with_answers()`: a question answered wrongly or not at all when the code under test catches the error, and a file that ends without an expected result. It counted them as failures but printed none of their output. It now prints every failing problem
+- `mxpm doc generate-core-docs` failed on current Maxima sources, whose manual uses `@:` since Maxima commit 7c453f719: makeinfo emits it as `&noeos;`, which the XML parser rejected, so no docs were generated
+- `mxpm doc generate-core-docs` left Texinfo's name encoding in running text and references (`pdf_005fgeneral` for `pdf_general`), and emitted plain-TeX `\cases` and `\eqalign`, which KaTeX does not render. It now decodes the names and rewrites those into the `cases` and `aligned` environments, and renders `@tex` blocks as display math
+
 ## [0.8.4] - 2026-10-21
 
 ### Security
