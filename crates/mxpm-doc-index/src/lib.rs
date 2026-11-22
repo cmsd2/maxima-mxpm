@@ -377,6 +377,31 @@ Computes the derivative.
     }
 
     #[test]
+    fn metadata_comments_stay_out_of_the_previous_body() {
+        let md = "\
+<!-- category: Statistics -->
+<!-- keywords: pdf_student_t -->
+### Function: pdf_student_t (x, n)
+
+Student density.
+
+<!-- category: Statistics -->
+<!-- keywords: pdf_weibull -->
+<!-- signatures: pdf_weibull(x, a, b) -->
+### Function: pdf_weibull (x, a, b)
+
+Weibull density.
+";
+        let idx = parse_markdown(md, "test", "doc/test.md");
+        let student = &idx.symbols["pdf_student_t"];
+        assert_eq!(student.body_md, "Student density.");
+        let weibull = &idx.symbols["pdf_weibull"];
+        assert_eq!(weibull.keywords, vec!["pdf_weibull"]);
+        assert_eq!(weibull.signatures, vec!["pdf_weibull(x, a, b)"]);
+        assert_eq!(weibull.body_md, "Weibull density.");
+    }
+
+    #[test]
     fn slim_preserves_keywords_and_signatures() {
         let md = "\
 <!-- keywords: kw1 -->

@@ -10,15 +10,36 @@ pub(super) fn definition_body_to_markdown(node: &roxmltree::Node) -> String {
 }
 
 pub(super) fn convert_children_to_md(node: &roxmltree::Node, out: &mut String, list_depth: usize) {
+    // Maxima's m4_displaymath writes each display formula for every output
+    // format: an @html block (for MathJax), an @ifinfo block and a @tex
+    // block.  makeinfo --xml drops @ifinfo but keeps the other two, so a
+    // <tex> straight after an <html> display formula is the same formula
+    // again.  Keep the HTML one, which is written for MathJax and suits KaTeX.
+    let mut after_html_math = false;
     for child in node.children() {
         if child.is_text() {
             if let Some(text) = child.text() {
+                if !text.trim().is_empty() {
+                    after_html_math = false;
+                }
                 push_text_with_figures(text, out);
             }
         } else if child.is_element() {
+            let name = child.tag_name().name();
+            if name == "tex" && after_html_math {
+                after_html_math = false;
+                continue;
+            }
+            after_html_math = name == "html" && is_display_math(&collect_text(&child));
             convert_element_to_md(&child, out, list_depth);
         }
     }
+}
+
+/// Whether raw Texinfo from an @html block is a display formula.
+fn is_display_math(raw: &str) -> bool {
+    let raw = raw.trim();
+    raw.starts_with("@displaymath") || raw.starts_with("$$")
 }
 
 /// Push text content, converting inline `(Figure name)` references to markdown
@@ -668,5 +689,44 @@ mod tests {
         let mut out = String::new();
         push_text_with_figures("var_with_underscores and snake_case", &mut out);
         assert_eq!(out, "var_with_underscores and snake_case");
+    }
+
+    fn para_to_md(xml: &str) -> String {
+        let doc = roxmltree::Document::parse(xml).unwrap();
+        let mut out = String::new();
+        convert_children_to_md(&doc.root_element(), &mut out, 0);
+        out
+    }
+
+    #[test]
+    fn test_display_math_written_once() {
+        // As makeinfo --xml writes Maxima's m4_displaymath: the @html copy,
+        // then the @tex copy of the same formula
+        let xml = "<para>The pdf is
+<html>
+@displaymath
+f(x) = {1\\over 2}
+@end displaymath
+</html>
+<tex>
+$$f(x) = {1\\over 2}$$
+</tex>
+</para>";
+        let md = para_to_md(xml);
+        assert_eq!(md.matches("$$").count(), 2, "{md}");
+        assert!(md.contains("The pdf is"), "{md}");
+    }
+
+    #[test]
+    fn test_tex_without_html_copy_is_kept() {
+        let md = para_to_md("<para>Only TeX: <tex>$$x^2$$</tex></para>");
+        assert!(md.contains("$$\nx^2\n$$"), "{md}");
+    }
+
+    #[test]
+    fn test_tex_after_other_html_is_kept() {
+        // An @html block that isn't a formula doesn't hide the TeX that follows
+        let md = para_to_md("<para><html>@image{fig}</html><tex>$$x^2$$</tex></para>");
+        assert!(md.contains("x^2"), "{md}");
     }
 }
