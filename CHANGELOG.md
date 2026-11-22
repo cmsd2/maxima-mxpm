@@ -12,6 +12,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- Doc indexes no longer end each entry's documentation with the next entry's `<!-- category -->`, `<!-- keywords -->` and `<!-- signatures -->` comments. The parser recorded them for the next heading but also appended them to the entry before it, which affected 2,594 of 2,707 entries in the core docs
+- `doc generate-core-docs` writes each display formula once. Maxima's `m4_displaymath` gives an `@html` and a `@tex` copy of the same formula, and `makeinfo --xml` keeps both; the `@tex` copy is now skipped when it follows the `@html` one. This repeated a formula in 275 core-docs entries
+
 ## [0.8.5] - 2026-11-13
 
 ### Added

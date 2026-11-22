@@ -44,34 +44,24 @@ pub(crate) fn split_into_blocks(content: &str) -> Vec<ParsedBlock> {
     let mut pending_category: Option<String> = None;
 
     for line in content.lines() {
-        // Check for metadata comments (only before symbol headings)
+        // Metadata comments describe the symbol heading that follows them.
+        // They sit after the previous symbol's text, so they are never part
+        // of a body: adding them would show the next symbol's category,
+        // keywords and signatures at the end of this one's documentation.
         if let Some(caps) = keywords_re.captures(line) {
             pending_keywords = caps[1]
                 .split(',')
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty())
                 .collect();
-            // Don't add to body if we're between blocks
-            if current.is_some() {
-                body.push_str(line);
-                body.push('\n');
-            }
             continue;
         }
         if let Some(caps) = signatures_re.captures(line) {
             pending_signatures = split_signatures(&caps[1]);
-            if current.is_some() {
-                body.push_str(line);
-                body.push('\n');
-            }
             continue;
         }
         if let Some(caps) = category_re.captures(line) {
             pending_category = Some(caps[1].trim().to_string());
-            if current.is_some() {
-                body.push_str(line);
-                body.push('\n');
-            }
             continue;
         }
 
