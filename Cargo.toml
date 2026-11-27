@@ -9,7 +9,6 @@ edition = "2024"
 description = "Maxima Package Manager"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/cmsd2/maxima-mxpm"
-homepage = "https://github.com/cmsd2/maxima-mxpm"
 keywords = ["maxima", "package-manager", "computer-algebra", "cas", "mathematics"]
 categories = ["command-line-utilities", "mathematics"]
 exclude = ["docs/", ".claude/", ".github/"]

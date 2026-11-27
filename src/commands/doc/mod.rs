@@ -322,6 +322,77 @@ pub fn run_build(
     Ok(())
 }
 
+/// Build the doc index for a translation of a package's documentation.
+///
+/// Reads `<name>.<lang>.md` beside the package's `<name>.md` (or `file`) and
+/// writes `<name>-doc-index.<lang>.json` beside it, with its `language`
+/// set, plus a slim index to `slim` if given.  Writes no `.info` or Lisp
+/// index: Maxima's own `describe` reads the English ones.
+pub fn run_translated_build(
+    file: Option<&str>,
+    output_dir: Option<&str>,
+    lang: &str,
+    slim: Option<&str>,
+) -> Result<(), MxpmError> {
+    let translated = match file {
+        Some(f) => f.to_string(),
+        // The manifest's doc, either the English one, beside which the
+        // translation sits, or the translation itself (a language pack's)
+        None => {
+            let doc = resolve_doc_source(None, output_dir)?;
+            if doc.stem.ends_with(&format!(".{lang}")) {
+                doc.file
+            } else {
+                Path::new(&doc.file)
+                    .with_file_name(format!("{}.{lang}.md", doc.stem))
+                    .to_string_lossy()
+                    .to_string()
+            }
+        }
+    };
+    let source = resolve_doc_source(Some(&translated), output_dir)?;
+    if !source.is_markdown {
+        return Err(MxpmError::MakeinfoFailed {
+            message: format!("a translation must be a .md file, got: {}", source.file),
+        });
+    }
+    let path = Path::new(&source.file);
+    let stem = source
+        .stem
+        .strip_suffix(&format!(".{lang}"))
+        .unwrap_or(&source.stem);
+
+    let content = includes::expand_includes(path)?;
+    let package_name = determine_package_name(&source);
+    let mut doc_idx = doc_index::parse_markdown(&content, &package_name, &source.file);
+    doc_idx.language = lang.to_string();
+
+    let doc_index_dir = path.parent().unwrap_or(Path::new("."));
+    let doc_index_path = doc_index_dir.join(doc_index::doc_index_file_name(stem, lang));
+    let json = serde_json::to_string_pretty(&doc_idx)
+        .map_err(|e| MxpmError::Io(std::io::Error::other(e)))?;
+    fs::write(&doc_index_path, &json)?;
+    eprintln!("Wrote {}", doc_index_path.display());
+    eprintln!(
+        "Doc index ({lang}): {} symbols, {} sections",
+        doc_idx.symbols.len(),
+        doc_idx.sections.len()
+    );
+
+    if let Some(slim_path) = slim {
+        let slim = doc_idx.slim();
+        let json = serde_json::to_string_pretty(&slim)
+            .map_err(|e| MxpmError::Io(std::io::Error::other(e)))?;
+        fs::write(slim_path, &json)?;
+        eprintln!(
+            "Wrote slim doc-index: {} symbols ({} bytes)",
+            slim.symbols.len(),
+            json.len()
+        );
+    }
+    Ok(())
+}
+
 /// Build a Maxima help index from a `.texi` or `.info` file.
 pub fn run_index(
     file: &str,

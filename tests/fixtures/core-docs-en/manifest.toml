@@ -1,0 +1,8 @@
+[package]
+name = "maxima-core-docs"
+version = "5.48.0"
+description = "Reference documentation for Maxima built-in functions and variables"
+license = "GPL-2.0-or-later"
+entry = "maxima_core_docs.mac"
+doc = "doc/maxima-core-docs.md"
+keywords = ["documentation", "core", "reference"]

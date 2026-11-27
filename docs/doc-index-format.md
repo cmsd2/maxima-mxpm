@@ -101,6 +101,7 @@ my-package/
 |---|---|---|
 | `version` | integer | Format version (currently `1`) |
 | `package` | string | Package name |
+| `language` | string? | The language of the text, a BCP 47 tag such as `es` or `pt-BR`. Absent in English indexes; an index without it is English |
 | `source` | string | Path to the doc source file, relative to package root |
 | `symbols` | object | Map from symbol name to documentation entry |
 | `sections` | array | Non-symbol documentation sections (introduction, tutorials, etc.) |
@@ -288,6 +289,25 @@ my-package.info (or .texi → makeinfo → .info)
 The doc index is generated automatically alongside `.info` and
 `-index.lisp` — no extra flag needed. It becomes a standard artifact
 of the doc build pipeline.
+
+## Translations
+
+A package can ship its documentation in other languages. The
+translation of `doc/<name>.md` is `doc/<name>.<lang>.md`, with the same
+headings, and `mxpm doc build --lang <lang>` builds it into
+`doc/<name>-doc-index.<lang>.json`, whose `language` field names the
+language. A translated build writes no `.info` or Lisp index, since
+Maxima's `describe` reads the English ones; `--slim <path>` writes a
+slim index as for English.
+
+`mxpm doc generate-core-docs --lang <lang>` reads Maxima's translated
+manual in `doc/info/<lang>/` (`pt-BR` reads `doc/info/pt_BR/`), with the
+English tree's macro files where the translation has none, and makes a
+`maxima-core-docs-<lang>` package holding
+`doc/maxima-core-docs-doc-index.<lang>.json` and its slim version.
+
+Front ends load every language they find and look each symbol up in the
+reader's language, then English, so a partial translation still works.
 
 ## Versioning
 

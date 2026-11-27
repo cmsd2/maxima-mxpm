@@ -30,12 +30,33 @@ struct ExtractedSymbol {
     keywords: Vec<String>,
 }
 
+/// Files a translated manual includes from the English tree, which
+/// Maxima's own build finds through an include path
+const SHARED_FILES: &[&str] = &[
+    "category-macros.texi",
+    "category-macros.texi.in",
+    "dlmf-ref-macros.texi",
+];
+
+/// Maxima's directory for a language's manual: `pt-BR` is `doc/info/pt_BR`
+fn info_dir_name(lang: &str) -> String {
+    match lang.split_once(['-', '_']) {
+        Some((language, region)) => {
+            format!("{}_{}", language.to_lowercase(), region.to_uppercase())
+        }
+        None => lang.to_lowercase(),
+    }
+}
+
+/// Generate the core docs package from Maxima's manual, in English or, with
+/// `lang`, from the translation in `doc/info/<lang>/`
 pub fn run(
     maxima_src: &str,
     output_dir: Option<&str>,
     no_build: bool,
     xml_dir: Option<&str>,
     mdbook: bool,
+    lang: Option<&str>,
 ) -> Result<(), MxpmError> {
     let src = Path::new(maxima_src);
     let doc_info = src.join("doc").join("info");
@@ -44,6 +65,19 @@ pub fn run(
             message: format!("Maxima source directory not found: {}", doc_info.display()),
         });
     }
+    // The manual to read: the English one, or a translation beside it
+    let manual = match lang {
+        Some(lang) => {
+            let dir = doc_info.join(info_dir_name(lang));
+            if !dir.join("maxima.texi").exists() {
+                return Err(MxpmError::MakeinfoFailed {
+                    message: format!("No Maxima manual in {lang}: {}", dir.display()),
+                });
+            }
+            dir
+        }
+        None => doc_info.clone(),
+    };
 
     let out = match output_dir {
         Some(d) => PathBuf::from(d),
@@ -64,7 +98,9 @@ pub fn run(
 
     // Step 1: Preprocess Texinfo
     eprintln!("Preprocessing Texinfo source...");
-    let texi_path = preprocess::preprocess_texi(&doc_info, &work_path)?;
+    let shared = lang.map(|_| (doc_info.as_path(), SHARED_FILES));
+    let texi_path =
+        preprocess::preprocess_texi(&manual, &work_path, &src.join("configure.ac"), shared)?;
 
     // Step 2: Run makeinfo --xml
     eprintln!("Running makeinfo --xml...");
@@ -91,10 +127,17 @@ pub fn run(
     );
 
     // Step 5: Generate main doc file with includes
-    emit::emit_main_doc(&category_groups, &doc_dir)?;
+    let main_doc = match lang {
+        Some(lang) => format!("maxima-core-docs.{lang}.md"),
+        None => "maxima-core-docs.md".to_string(),
+    };
+    emit::emit_main_doc(&category_groups, &doc_dir.join(&main_doc))?;
 
-    // Step 6: Copy figures
-    let figures_src = doc_info.join("figures");
+    // Step 6: Copy figures, the translation's own or else the English ones
+    let figures_src = match manual.join("figures") {
+        own if own.is_dir() => own,
+        _ => doc_info.join("figures"),
+    };
     if figures_src.is_dir() {
         let figures_dst = doc_dir.join("figures");
         copy_dir(&figures_src, &figures_dst)?;
@@ -103,29 +146,34 @@ pub fn run(
     }
 
     // Step 7: Generate manifest and placeholder .mac
-    emit::emit_manifest(&out, src)?;
+    emit::emit_manifest(&out, src, lang)?;
 
     eprintln!("Generated package at {}", out.display());
 
     // Step 8: Optionally run mxpm doc build (always includes slim index)
     if !no_build {
         eprintln!("\nRunning doc build...");
-        let md_path = doc_dir
-            .join("maxima-core-docs.md")
-            .to_string_lossy()
-            .to_string();
+        let md_path = doc_dir.join(&main_doc).to_string_lossy().to_string();
         let slim_path = doc_dir
-            .join("maxima-core-docs-slim-doc-index.json")
+            .join(crate::doc_index::slim_doc_index_file_name(
+                "maxima-core-docs",
+                lang.unwrap_or(crate::doc_index::ENGLISH),
+            ))
             .to_string_lossy()
             .to_string();
         let out_str = out.to_string_lossy().to_string();
-        super::run_build(
-            Some(&md_path),
-            Some(&out_str),
-            false,
-            mdbook,
-            Some(&slim_path),
-        )?;
+        match lang {
+            Some(lang) => {
+                super::run_translated_build(Some(&md_path), Some(&out_str), lang, Some(&slim_path))?
+            }
+            None => super::run_build(
+                Some(&md_path),
+                Some(&out_str),
+                false,
+                mdbook,
+                Some(&slim_path),
+            )?,
+        }
     }
 
     Ok(())
@@ -145,4 +193,17 @@ fn copy_dir(src: &Path, dst: &Path) -> Result<(), MxpmError> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_language_names_maxima_s_directory() {
+        assert_eq!(info_dir_name("es"), "es");
+        assert_eq!(info_dir_name("pt-BR"), "pt_BR");
+        assert_eq!(info_dir_name("pt-br"), "pt_BR");
+        assert_eq!(info_dir_name("pt_BR"), "pt_BR");
+    }
 }

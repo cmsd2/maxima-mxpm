@@ -118,6 +118,7 @@ mod tests {
     use std::collections::BTreeMap;
 
     use super::*;
+    use crate::ENGLISH;
     use crate::{ExampleEntry, SymbolEntry};
 
     fn make_symbol(summary: &str, examples: usize, see_also: Vec<&str>) -> SymbolEntry {
@@ -150,6 +151,7 @@ mod tests {
         let mut index = DocIndex {
             version: 1,
             package: "test".to_string(),
+            language: ENGLISH.to_string(),
             source: "test.md".to_string(),
             symbols: BTreeMap::new(),
             sections: Vec::new(),
@@ -175,6 +177,7 @@ mod tests {
         let mut index = DocIndex {
             version: 1,
             package: "test".to_string(),
+            language: ENGLISH.to_string(),
             source: "test.md".to_string(),
             symbols: BTreeMap::new(),
             sections: Vec::new(),
@@ -196,6 +199,7 @@ mod tests {
         let mut index = DocIndex {
             version: 1,
             package: "test".to_string(),
+            language: ENGLISH.to_string(),
             source: "test.md".to_string(),
             symbols: BTreeMap::new(),
             sections: Vec::new(),
@@ -218,6 +222,7 @@ mod tests {
         let mut index = DocIndex {
             version: 1,
             package: "test".to_string(),
+            language: ENGLISH.to_string(),
             source: "test.md".to_string(),
             symbols: BTreeMap::new(),
             sections: Vec::new(),

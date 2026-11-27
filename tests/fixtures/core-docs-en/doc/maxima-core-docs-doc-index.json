@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "package": "maxima-core-docs",
+  "source": "@OUT@/doc/maxima-core-docs.md",
+  "symbols": {
+    "defint": {
+      "type": "Function",
+      "signature": "defint(expr, x, a, b)",
+      "summary": "Attempts to compute a definite integral.",
+      "body_md": "Attempts to compute a definite integral.",
+      "examples": [],
+      "see_also": [],
+      "category": "Calculus",
+      "section": "Integration",
+      "keywords": [
+        "defint"
+      ],
+      "signatures": [
+        "defint(expr, x, a, b)"
+      ]
+    },
+    "integrate": {
+      "type": "Function",
+      "signature": "integrate(expr, x)",
+      "summary": "Attempts to symbolically compute the integral of expr with respect to x.",
+      "body_md": "Attempts to symbolically compute the integral of *expr* with respect to *x*.",
+      "examples": [],
+      "see_also": [],
+      "category": "Calculus",
+      "section": "Integration",
+      "keywords": [
+        "integrate"
+      ],
+      "signatures": [
+        "integrate(expr, x)",
+        "integrate(expr, x, a, b)"
+      ]
+    }
+  },
+  "sections": [
+    {
+      "title": "Introduction",
+      "body_md": "Reference documentation for Maxima's built-in functions and variables,\ngenerated from the official Maxima Texinfo source."
+    },
+    {
+      "title": "Calculus",
+      "body_md": "",
+      "subsections": [
+        {
+          "title": "Integration",
+          "body_md": ""
+        }
+      ]
+    }
+  ]
+}

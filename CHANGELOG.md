@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- `doc build --lang <lang>` builds a translation of a package's documentation, `doc/<name>.<lang>.md`, into `doc/<name>-doc-index.<lang>.json`. It writes no `.info` or Lisp index, since Maxima's own help reads the English ones
+- `doc generate-core-docs --lang <lang>` builds a `maxima-core-docs-<lang>` package from Maxima's manual in `doc/info/<lang>/`, using the English tree's macro files where the translation has none. `pt-BR` reads `doc/info/pt_BR/`
+- Doc indexes have a `language` field, such as `"es"`. English indexes leave it out and read as before, and an index without it is English. mxpm-doc-index gains `ENGLISH`, `doc_index_file_name` and `slim_doc_index_file_name`
+
 ### Changed
 
 ### Fixed

@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "package": "maxima-core-docs",
+  "source": "@OUT@/doc/maxima-core-docs.md",
+  "symbols": {
+    "defint": {
+      "type": "Function",
+      "signature": "defint(expr, x, a, b)",
+      "summary": "Attempts to compute a definite integral.",
+      "body_md": "",
+      "examples": [],
+      "see_also": [],
+      "category": "Calculus",
+      "section": "Integration",
+      "keywords": [
+        "defint"
+      ],
+      "signatures": [
+        "defint(expr, x, a, b)"
+      ]
+    },
+    "integrate": {
+      "type": "Function",
+      "signature": "integrate(expr, x)",
+      "summary": "Attempts to symbolically compute the integral of expr with respect to x.",
+      "body_md": "",
+      "examples": [],
+      "see_also": [],
+      "category": "Calculus",
+      "section": "Integration",
+      "keywords": [
+        "integrate"
+      ],
+      "signatures": [
+        "integrate(expr, x)",
+        "integrate(expr, x, a, b)"
+      ]
+    }
+  },
+  "sections": []
+}

@@ -1,0 +1,25 @@
+\input texinfo
+@setfilename maxima.info
+@settitle Manual de Maxima
+@include category-macros.texi
+
+@node Top, Integración, (dir), (dir)
+@top Maxima
+
+@menu
+* Integración::
+@end menu
+
+@node Integración, , Top, Top
+@chapter Integración
+
+@deffn {Función} integrate (@var{expr}, @var{x})
+@deffnx {Función} integrate (@var{expr}, @var{x}, @var{a}, @var{b})
+Calcula simbólicamente la integral de @var{expr} respecto de @var{x}.
+
+@opencatbox{Categories:}
+@category{Integral calculus}
+@closecatbox
+@end deffn
+
+@bye
