@@ -595,6 +595,10 @@ pub(super) fn replace_texinfo_entities(xml: &str) -> String {
         .replace("&minus;", "-")
         .replace("&nbsp;", " ")
         .replace("&period;", ".")
+        // `@.`, `@?` and `@!`: punctuation that ends a sentence
+        .replace("&eosperiod;", ".")
+        .replace("&eosquest;", "?")
+        .replace("&eosexcl;", "!")
         // `@.` / `&noeos;` — texinfo "not end of sentence" marker; just a
         // typesetting hint to suppress the wider end-of-sentence spacing.
         // Discard entirely in the markdown output.

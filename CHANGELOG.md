@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `doc generate-core-docs --lang` builds Maxima's German, Japanese and Russian manuals, which `makeinfo --xml` stopped on. A translation runs makeinfo with `--force`, as Maxima's own build of some of them does, and prints the errors it kept going past, such as references to nodes only the English manual has. It also fills in the version in a template that names it `@VERSION@`, and reads makeinfo's end-of-sentence `@.`, `@?` and `@!`
+- A translation takes the English tree's macro files where it has none, but no longer anything else: a chapter only the English manual has becomes an empty stub, so a translated index holds only translated text. From Maxima 5.50post the manuals document 84% (de), 82% (ja) and 48% (ru) of the English symbols
+
 ## [0.9.0] - 2026-11-27
 
 ### Added

@@ -30,14 +30,6 @@ struct ExtractedSymbol {
     keywords: Vec<String>,
 }
 
-/// Files a translated manual includes from the English tree, which
-/// Maxima's own build finds through an include path
-const SHARED_FILES: &[&str] = &[
-    "category-macros.texi",
-    "category-macros.texi.in",
-    "dlmf-ref-macros.texi",
-];
-
 /// Maxima's directory for a language's manual: `pt-BR` is `doc/info/pt_BR`
 fn info_dir_name(lang: &str) -> String {
     match lang.split_once(['-', '_']) {
@@ -98,13 +90,15 @@ pub fn run(
 
     // Step 1: Preprocess Texinfo
     eprintln!("Preprocessing Texinfo source...");
-    let shared = lang.map(|_| (doc_info.as_path(), SHARED_FILES));
+    // A translation includes what it lacks from the English tree, as
+    // Maxima's own build does with `-I ..`
+    let english = lang.map(|_| doc_info.as_path());
     let texi_path =
-        preprocess::preprocess_texi(&manual, &work_path, &src.join("configure.ac"), shared)?;
+        preprocess::preprocess_texi(&manual, &work_path, &src.join("configure.ac"), english)?;
 
     // Step 2: Run makeinfo --xml
     eprintln!("Running makeinfo --xml...");
-    let xml_path = preprocess::run_makeinfo_xml(&texi_path, &work_path)?;
+    let xml_path = preprocess::run_makeinfo_xml(&texi_path, &work_path, lang.is_some())?;
     if xml_dir.is_some() {
         eprintln!("XML saved to {}", xml_path.display());
     }

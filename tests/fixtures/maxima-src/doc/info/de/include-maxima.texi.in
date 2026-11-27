@@ -1,0 +1,25 @@
+@settitle Maxima @VERSION@ Handbuch
+@include category-macros.texi
+
+@node Top, Integration, (dir), (dir)
+@top Maxima
+
+@menu
+* Integration::
+* Grenzwerte::
+@end menu
+
+@node Integration, Grenzwerte, Top, Top
+@chapter Integration
+
+@deffn {Funktion} integrate (@var{expr}, @var{x})
+Berechnet das Integral von @var{expr} mit Maxima@. Siehe auch @ref{defint}.
+
+@opencatbox{Categories:}
+@category{Integral calculus}
+@closecatbox
+@end deffn
+
+@node Grenzwerte, , Integration, Top
+@chapter Grenzwerte
+@include Limits.texi

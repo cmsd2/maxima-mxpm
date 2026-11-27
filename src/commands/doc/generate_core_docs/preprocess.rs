@@ -12,24 +12,20 @@ use super::copy_dir;
 ///
 /// Copies the source to a working directory, processes `.texi.in` and
 /// `.texi.m4` templates, and patches `category-macros.texi` for XML-mode
-/// figure handling.  `shared` names a directory and files in it to copy
-/// in where the manual has none of its own, as a translation includes the
-/// English tree's macro files.
+/// figure handling.  `fallback` is a directory whose files fill in for
+/// ones the manual lacks, as a translation includes the English tree's
+/// macro files.  A chapter it lacks becomes an empty stub instead, so the
+/// translation holds only translated text.
 pub(super) fn preprocess_texi(
     doc_info: &Path,
     work_dir: &Path,
     configure_ac: &Path,
-    shared: Option<(&Path, &[&str])>,
+    fallback: Option<&Path>,
 ) -> Result<PathBuf, MxpmError> {
     // Copy doc/info/ contents to working directory
     copy_dir(doc_info, work_dir)?;
-    if let Some((dir, files)) = shared {
-        for file in files {
-            let (from, to) = (dir.join(file), work_dir.join(file));
-            if from.exists() && !to.exists() {
-                fs::copy(&from, &to)?;
-            }
-        }
+    if let Some(dir) = fallback {
+        copy_missing_files(dir, work_dir)?;
     }
 
     // Extract version from configure.ac
@@ -57,6 +53,50 @@ pub(super) fn preprocess_texi(
     Ok(texi_path)
 }
 
+/// Copy the files in `from` (not its directories) that `to` has no version
+/// of.  A template (`.texi.in`, `.texi.m4`) counts as a version of the file
+/// it makes, so it never replaces one the manual has.  A chapter, a file
+/// that defines nodes or entries, becomes an empty stub rather than the
+/// English text: the manual's references into it then fail, which the
+/// lenient makeinfo run reports.
+fn copy_missing_files(from: &Path, to: &Path) -> Result<(), MxpmError> {
+    for entry in fs::read_dir(from)? {
+        let entry = entry?;
+        if !entry.file_type()?.is_file() {
+            continue;
+        }
+        let name = entry.file_name().to_string_lossy().to_string();
+        let made = name
+            .strip_suffix(".in")
+            .or_else(|| name.strip_suffix(".m4"))
+            .unwrap_or(&name);
+        if to.join(&name).exists() || to.join(made).exists() {
+            continue;
+        }
+        let bytes = fs::read(entry.path())?;
+        if made.ends_with(".texi") && is_chapter(&String::from_utf8_lossy(&bytes)) {
+            fs::write(
+                to.join(made),
+                format!("@c {made} is in the English manual only\n"),
+            )?;
+        } else {
+            fs::write(to.join(&name), bytes)?;
+        }
+    }
+    Ok(())
+}
+
+/// Whether Texinfo source holds content (nodes or definitions) rather than
+/// only macros
+fn is_chapter(texi: &str) -> bool {
+    texi.lines().any(|line| {
+        let line = line.trim_start();
+        ["@node ", "@deffn ", "@defvr ", "@chapter ", "@section "]
+            .iter()
+            .any(|command| line.starts_with(command))
+    })
+}
+
 pub(super) fn extract_version(configure_ac: &Path) -> Result<String, MxpmError> {
     let content = fs::read_to_string(configure_ac)?;
     // Look for AC_INIT([maxima], [5.47.0], ...)
@@ -82,8 +122,10 @@ fn process_texi_in_files(work_dir: &Path, version: &str) -> Result<(), MxpmError
             && name.ends_with(".texi.in")
         {
             let content = fs::read_to_string(&path)?;
+            // Translations' templates name the version @VERSION@
             let output = content
                 .replace("@manual_version@", version)
+                .replace("@VERSION@", version)
                 .replace("@abs_srcdir@", &work_dir.to_string_lossy());
             let out_name = name.strip_suffix(".in").unwrap();
             fs::write(work_dir.join(out_name), output)?;
@@ -177,10 +219,24 @@ fn patch_category_macros(work_dir: &Path) -> Result<(), MxpmError> {
 }
 
 /// Run `makeinfo --xml` on the preprocessed Texinfo source.
-pub(super) fn run_makeinfo_xml(texi_path: &Path, work_dir: &Path) -> Result<PathBuf, MxpmError> {
+///
+/// With `lenient`, for a translation, makeinfo keeps going past errors
+/// (`--force`), as Maxima's own build of some translations does: they
+/// cross-reference nodes only the English manual has.  The errors are
+/// reported as a warning, and the build fails only if makeinfo wrote
+/// nothing.
+pub(super) fn run_makeinfo_xml(
+    texi_path: &Path,
+    work_dir: &Path,
+    lenient: bool,
+) -> Result<PathBuf, MxpmError> {
     let xml_path = work_dir.join("maxima.xml");
-    let output = Command::new("makeinfo")
-        .args(["--xml", "--no-warn"])
+    let mut command = Command::new("makeinfo");
+    command.args(["--xml", "--no-warn"]);
+    if lenient {
+        command.args(["--force", "--error-limit=100000"]);
+    }
+    let output = command
         .arg(texi_path)
         .arg("-o")
         .arg(&xml_path)
@@ -190,12 +246,83 @@ pub(super) fn run_makeinfo_xml(texi_path: &Path, work_dir: &Path) -> Result<Path
             message: format!("Failed to run makeinfo: {e}"),
         })?;
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let wrote = xml_path.metadata().is_ok_and(|m| m.len() > 0);
+    if !output.status.success() && !(lenient && wrote) {
         return Err(MxpmError::MakeinfoFailed {
             message: format!("makeinfo --xml failed:\n{stderr}"),
         });
     }
+    // With --force, makeinfo can succeed and still report errors
+    let errors: Vec<&str> = stderr.lines().filter(|l| !l.trim().is_empty()).collect();
+    if lenient && !errors.is_empty() {
+        eprintln!(
+            "Warning: makeinfo reported {} error{} in this manual and kept going (--force). The first:",
+            errors.len(),
+            if errors.len() == 1 { "" } else { "s" }
+        );
+        for line in errors.iter().take(5) {
+            eprintln!("  {line}");
+        }
+    }
 
     Ok(xml_path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn macros_fill_in_and_chapters_become_stubs() {
+        let (english, manual) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        let e = english.path();
+        fs::write(
+            e.join("category-macros.texi"),
+            "@macro category {name}\n@end macro\n",
+        )
+        .unwrap();
+        fs::write(
+            e.join("Simplification.texi"),
+            "@deffn {Function} expand (@var{expr})\n",
+        )
+        .unwrap();
+        fs::write(e.join("include-maxima.texi.in"), "@node Top\n").unwrap();
+        fs::write(e.join("Lists.texi"), "@node Lists\n").unwrap();
+        let m = manual.path();
+        fs::write(m.join("include-maxima.texi"), "translated").unwrap();
+        fs::write(m.join("Lists.texi"), "translated").unwrap();
+
+        copy_missing_files(e, m).unwrap();
+        // Macros come from English
+        assert!(
+            fs::read_to_string(m.join("category-macros.texi"))
+                .unwrap()
+                .contains("@macro")
+        );
+        // A chapter the translation lacks is a stub
+        let stub = fs::read_to_string(m.join("Simplification.texi")).unwrap();
+        assert!(!stub.contains("@deffn"), "{stub}");
+        // The translation's own files, and what its templates make, stay
+        assert!(!m.join("include-maxima.texi.in").exists());
+        assert_eq!(
+            fs::read_to_string(m.join("Lists.texi")).unwrap(),
+            "translated"
+        );
+    }
+
+    #[test]
+    fn a_translation_s_template_gets_its_version() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(
+            dir.path().join("include-maxima.texi.in"),
+            "@settitle Maxima @VERSION@ Manual\n",
+        )
+        .unwrap();
+        process_texi_in_files(dir.path(), "5.50post").unwrap();
+        assert_eq!(
+            fs::read_to_string(dir.path().join("include-maxima.texi")).unwrap(),
+            "@settitle Maxima 5.50post Manual\n"
+        );
+    }
 }

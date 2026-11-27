@@ -107,10 +107,10 @@ fn a_language_without_a_manual_is_an_error() {
         .arg(fixture("maxima-src"))
         .arg("--output")
         .arg(out.path())
-        .args(["--lang", "de"])
+        .args(["--lang", "fr"])
         .assert()
         .failure()
-        .stderr(predicate::str::contains("No Maxima manual in de"));
+        .stderr(predicate::str::contains("No Maxima manual in fr"));
 }
 
 /// The English output, with the output directory as `@OUT@`, equals
@@ -184,4 +184,37 @@ fn spanish_core_docs_are_a_language_pack() {
         "{manifest}"
     );
     assert!(!out.path().join("maxima-core-docs.info").exists());
+}
+
+/// German, in the fixture, has what stopped Maxima's German, Japanese and
+/// Russian manuals: a template naming the version `@VERSION@`, a reference
+/// to a node only the English manual has, a chapter only the English
+/// manual has, and an end-of-sentence `@.`
+#[test]
+fn a_translation_with_errors_still_builds() {
+    if !have(&["makeinfo"]) {
+        return;
+    }
+    let out = tempfile::tempdir().unwrap();
+    mxpm()
+        .args(["doc", "generate-core-docs", "--maxima-src"])
+        .arg(fixture("maxima-src"))
+        .arg("--output")
+        .arg(out.path())
+        .args(["--lang", "de"])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("kept going (--force)"))
+        .stderr(predicate::str::contains("nonexistent node `defint'"));
+    let index = json(&out.path().join("doc/maxima-core-docs-doc-index.de.json"));
+    let integrate = &index["symbols"]["integrate"];
+    assert!(
+        integrate["summary"]
+            .as_str()
+            .unwrap()
+            .starts_with("Berechnet das Integral von expr mit Maxima."),
+        "{integrate}"
+    );
+    // The English-only chapter isn't passed off as German
+    assert!(index["symbols"].get("limit").is_none(), "{index}");
 }
