@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-27
+
 ### Added
 
 - `doc build --lang <lang>` builds a translation of a package's documentation, `doc/<name>.<lang>.md`, into `doc/<name>-doc-index.<lang>.json`. It writes no `.info` or Lisp index, since Maxima's own help reads the English ones
@@ -14,7 +16,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
-### Fixed
+- Removed `package.homepage`, which repeated `package.repository`
+- mxpm-doc-index is 0.2.0: `DocIndex` has a new public field, `language`
 
 ## [0.8.6] - 2026-11-22
 
