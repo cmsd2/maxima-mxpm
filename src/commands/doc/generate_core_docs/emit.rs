@@ -406,10 +406,11 @@ fn extract_heading_args(sig: &str, name: &str) -> Option<String> {
     }
 }
 
-/// Generate the main doc file with `<!-- include: ... -->` directives grouped by category.
+/// Generate the main doc file, at `path`, with `<!-- include: ... -->`
+/// directives grouped by category.
 pub(super) fn emit_main_doc(
     category_groups: &[(String, Vec<String>)],
-    doc_dir: &Path,
+    path: &Path,
 ) -> Result<(), MxpmError> {
     let mut content = String::from("# Maxima Core Documentation\n\n");
     content.push_str("## Introduction\n\n");
@@ -426,7 +427,7 @@ pub(super) fn emit_main_doc(
         content.push('\n');
     }
 
-    fs::write(doc_dir.join("maxima-core-docs.md"), content)?;
+    fs::write(path, content)?;
     Ok(())
 }
 
@@ -442,8 +443,13 @@ fn slugify(s: &str) -> String {
         .join("-")
 }
 
-/// Generate `manifest.toml` and placeholder `.mac` for the package.
-pub(super) fn emit_manifest(out_dir: &Path, maxima_src: &Path) -> Result<(), MxpmError> {
+/// Generate `manifest.toml` and placeholder `.mac` for the package:
+/// `maxima-core-docs`, or `maxima-core-docs-<lang>` for a translation.
+pub(super) fn emit_manifest(
+    out_dir: &Path,
+    maxima_src: &Path,
+    lang: Option<&str>,
+) -> Result<(), MxpmError> {
     // Try to get version from Maxima source
     let configure_ac = maxima_src.join("configure.ac");
     let version = if configure_ac.exists() {
@@ -452,8 +458,9 @@ pub(super) fn emit_manifest(out_dir: &Path, maxima_src: &Path) -> Result<(), Mxp
         "5.47.0".to_string()
     };
 
-    let manifest = format!(
-        r#"[package]
+    let Some(lang) = lang else {
+        let manifest = format!(
+            r#"[package]
 name = "maxima-core-docs"
 version = "{version}"
 description = "Reference documentation for Maxima built-in functions and variables"
@@ -462,12 +469,30 @@ entry = "maxima_core_docs.mac"
 doc = "doc/maxima-core-docs.md"
 keywords = ["documentation", "core", "reference"]
 "#
+        );
+        fs::write(out_dir.join("manifest.toml"), manifest)?;
+
+        let mac = "/* maxima-core-docs: documentation-only package */\n";
+        fs::write(out_dir.join("maxima_core_docs.mac"), mac)?;
+        return Ok(());
+    };
+
+    let name = format!("maxima-core-docs-{}", lang.to_lowercase());
+    let entry = format!("{}.mac", name.replace('-', "_"));
+    let manifest = format!(
+        r#"[package]
+name = "{name}"
+version = "{version}"
+description = "Reference documentation for Maxima built-in functions and variables, in {lang}, from Maxima's translated manual"
+license = "GPL-2.0-or-later"
+entry = "{entry}"
+doc = "doc/maxima-core-docs.{lang}.md"
+keywords = ["documentation", "core", "reference", "{lang}"]
+"#
     );
     fs::write(out_dir.join("manifest.toml"), manifest)?;
-
-    let mac = "/* maxima-core-docs: documentation-only package */\n";
-    fs::write(out_dir.join("maxima_core_docs.mac"), mac)?;
-
+    let mac = format!("/* {name}: documentation-only package */\n");
+    fs::write(out_dir.join(entry), mac)?;
     Ok(())
 }
 

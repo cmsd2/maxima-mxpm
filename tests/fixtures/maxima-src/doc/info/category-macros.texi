@@ -1,0 +1,12 @@
+@macro opencatbox {label}
+@end macro
+
+@macro category {name}
+@end macro
+
+@macro closecatbox {}
+@end macro
+
+@macro fname {name}
+@*\name\
+@end macro

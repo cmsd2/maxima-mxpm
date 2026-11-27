@@ -23,6 +23,11 @@ use serde::{Deserialize, Serialize};
 pub struct DocIndex {
     pub version: u32,
     pub package: String,
+    /// The language of the index's text, a BCP 47 tag such as `es` or
+    /// `pt-BR`.  English when absent, and left out of English indexes, so
+    /// they read as they did before languages.
+    #[serde(default = "english", skip_serializing_if = "is_english")]
+    pub language: String,
     pub source: String,
     pub symbols: BTreeMap<String, SymbolEntry>,
     pub sections: Vec<SectionEntry>,
@@ -64,6 +69,33 @@ pub struct SectionEntry {
     pub body_md: String,
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub subsections: Vec<SectionEntry>,
+}
+
+/// The language of an index without one
+pub const ENGLISH: &str = "en";
+
+fn english() -> String {
+    ENGLISH.to_string()
+}
+
+fn is_english(language: &str) -> bool {
+    language.eq_ignore_ascii_case(ENGLISH)
+}
+
+/// The file name of a doc index for `stem` in `language`:
+/// `<stem>-doc-index.json` for English, `<stem>-doc-index.<lang>.json` for
+/// any other language
+pub fn doc_index_file_name(stem: &str, language: &str) -> String {
+    if is_english(language) {
+        format!("{stem}-doc-index.json")
+    } else {
+        format!("{stem}-doc-index.{language}.json")
+    }
+}
+
+/// The file name of a slim doc index, as [`doc_index_file_name`]
+pub fn slim_doc_index_file_name(stem: &str, language: &str) -> String {
+    doc_index_file_name(&format!("{stem}-slim"), language)
 }
 
 // ---------------------------------------------------------------------------
@@ -116,6 +148,7 @@ pub fn parse_markdown(content: &str, package_name: &str, source_path: &str) -> D
     DocIndex {
         version: 1,
         package: package_name.to_string(),
+        language: english(),
         source: source_path.to_string(),
         symbols,
         sections,
@@ -129,6 +162,7 @@ impl DocIndex {
         DocIndex {
             version: self.version,
             package: self.package.clone(),
+            language: self.language.clone(),
             source: self.source.clone(),
             symbols: self
                 .symbols
@@ -415,5 +449,46 @@ Does foo.
         let sym = &slim.symbols["foo"];
         assert_eq!(sym.keywords, vec!["kw1"]);
         assert_eq!(sym.signatures, vec!["foo(x)", "foo(x, y)"]);
+    }
+}
+
+#[cfg(test)]
+mod language_tests {
+    use super::*;
+
+    #[test]
+    fn an_english_index_has_no_language_field() {
+        let index = parse_markdown("### Function: f (x)\n\nDoes f.\n", "p", "p.md");
+        let json = serde_json::to_value(&index).unwrap();
+        assert!(json.get("language").is_none(), "{json}");
+    }
+
+    #[test]
+    fn a_translated_index_names_its_language() {
+        let mut index = parse_markdown("### Function: f (x)\n\nHace f.\n", "p", "p.md");
+        index.language = "es".to_string();
+        let json = serde_json::to_value(index.slim()).unwrap();
+        assert_eq!(json["language"], "es");
+        let read: DocIndex = serde_json::from_value(json).unwrap();
+        assert_eq!(read.language, "es");
+    }
+
+    #[test]
+    fn an_index_without_a_language_reads_as_english() {
+        let read: DocIndex = serde_json::from_str(
+            r#"{"version": 1, "package": "p", "source": "", "symbols": {}, "sections": []}"#,
+        )
+        .unwrap();
+        assert_eq!(read.language, ENGLISH);
+    }
+
+    #[test]
+    fn file_names_carry_the_language() {
+        assert_eq!(doc_index_file_name("p", "en"), "p-doc-index.json");
+        assert_eq!(doc_index_file_name("p", "es"), "p-doc-index.es.json");
+        assert_eq!(
+            slim_doc_index_file_name("p", "pt-BR"),
+            "p-slim-doc-index.pt-BR.json"
+        );
     }
 }

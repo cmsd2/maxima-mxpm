@@ -1,0 +1,34 @@
+\input texinfo
+@setfilename maxima.info
+@settitle Maxima Manual
+@include category-macros.texi
+
+@node Top, Integration, (dir), (dir)
+@top Maxima
+
+@menu
+* Integration::
+@end menu
+
+@node Integration, , Top, Top
+@chapter Integration
+
+@deffn {Function} integrate @
+@fname{integrate} (@var{expr}, @var{x}) @
+@fname{integrate} (@var{expr}, @var{x}, @var{a}, @var{b})
+Attempts to symbolically compute the integral of @var{expr} with respect to @var{x}.
+
+@opencatbox{Categories:}
+@category{Integral calculus}
+@closecatbox
+@end deffn
+
+@deffn {Function} defint (@var{expr}, @var{x}, @var{a}, @var{b})
+Attempts to compute a definite integral.
+
+@opencatbox{Categories:}
+@category{Integral calculus}
+@closecatbox
+@end deffn
+
+@bye

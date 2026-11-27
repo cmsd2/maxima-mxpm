@@ -162,6 +162,12 @@ pub enum DocCommand {
         /// Also write a slim doc-index to this path (signatures + summaries only)
         #[arg(long)]
         slim: Option<String>,
+
+        /// Build a translation, in this language (a BCP 47 tag such as `es`).
+        /// Reads <name>.<lang>.md beside the manifest's doc and writes only
+        /// <name>-doc-index.<lang>.json; Maxima's help files stay English
+        #[arg(long)]
+        lang: Option<String>,
     },
 
     /// Watch a doc source file and rebuild on changes
@@ -235,6 +241,12 @@ pub enum DocCommand {
         /// Also generate mdBook source
         #[arg(long)]
         mdbook: bool,
+
+        /// Build from Maxima's manual in this language (a BCP 47 tag such as
+        /// `es` or `pt-BR`), in doc/info/<lang>/, into a package named
+        /// maxima-core-docs-<lang>
+        #[arg(long)]
+        lang: Option<String>,
     },
 }
 
@@ -318,15 +330,29 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
                 xml,
                 mdbook,
                 slim,
-            } => {
-                commands::doc::run_build(
-                    file.as_deref(),
-                    output.as_deref(),
-                    xml,
-                    mdbook,
-                    slim.as_deref(),
-                )?;
-            }
+                lang,
+            } => match lang.as_deref().filter(|l| !is_english(l)) {
+                Some(lang) => {
+                    if xml || mdbook {
+                        eprintln!("Note: --xml and --mdbook are for English sources; skipping.");
+                    }
+                    commands::doc::run_translated_build(
+                        file.as_deref(),
+                        output.as_deref(),
+                        lang,
+                        slim.as_deref(),
+                    )?;
+                }
+                None => {
+                    commands::doc::run_build(
+                        file.as_deref(),
+                        output.as_deref(),
+                        xml,
+                        mdbook,
+                        slim.as_deref(),
+                    )?;
+                }
+            },
             DocCommand::Watch {
                 file,
                 output,
@@ -356,6 +382,7 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
                 no_build,
                 xml_dir,
                 mdbook,
+                lang,
             } => {
                 commands::doc::generate_core_docs::run(
                     &maxima_src,
@@ -363,10 +390,16 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
                     no_build,
                     xml_dir.as_deref(),
                     mdbook,
+                    lang.as_deref().filter(|l| !is_english(l)),
                 )?;
             }
         },
     }
 
     Ok(())
+}
+
+/// Whether a `--lang` names English, which builds as if it were absent
+fn is_english(lang: &str) -> bool {
+    lang.eq_ignore_ascii_case(mxpm::doc_index::ENGLISH)
 }

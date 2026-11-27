@@ -12,19 +12,29 @@ use super::copy_dir;
 ///
 /// Copies the source to a working directory, processes `.texi.in` and
 /// `.texi.m4` templates, and patches `category-macros.texi` for XML-mode
-/// figure handling.
-pub(super) fn preprocess_texi(doc_info: &Path, work_dir: &Path) -> Result<PathBuf, MxpmError> {
+/// figure handling.  `shared` names a directory and files in it to copy
+/// in where the manual has none of its own, as a translation includes the
+/// English tree's macro files.
+pub(super) fn preprocess_texi(
+    doc_info: &Path,
+    work_dir: &Path,
+    configure_ac: &Path,
+    shared: Option<(&Path, &[&str])>,
+) -> Result<PathBuf, MxpmError> {
     // Copy doc/info/ contents to working directory
     copy_dir(doc_info, work_dir)?;
+    if let Some((dir, files)) = shared {
+        for file in files {
+            let (from, to) = (dir.join(file), work_dir.join(file));
+            if from.exists() && !to.exists() {
+                fs::copy(&from, &to)?;
+            }
+        }
+    }
 
     // Extract version from configure.ac
-    let configure_ac = doc_info
-        .parent()
-        .and_then(|p| p.parent())
-        .map(|p| p.join("configure.ac"))
-        .unwrap_or_default();
     let version = if configure_ac.exists() {
-        extract_version(&configure_ac)?
+        extract_version(configure_ac)?
     } else {
         "5.47.0".to_string()
     };
