@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-11-27
+
 ### Fixed
 
 - `doc generate-core-docs --lang` builds Maxima's German, Japanese and Russian manuals, which `makeinfo --xml` stopped on. A translation runs makeinfo with `--force`, as Maxima's own build of some of them does, and prints the errors it kept going past, such as references to nodes only the English manual has. It also fills in the version in a template that names it `@VERSION@`, and reads makeinfo's end-of-sentence `@.`, `@?` and `@!`
