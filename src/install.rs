@@ -57,7 +57,7 @@ pub async fn install_package(
     let download_result = crate::source::download_and_extract(&entry.source, &staging_pkg).await?;
 
     // Try to read manifest.toml for version info
-    let version = read_version_from_staging(&staging_pkg);
+    let version = read_manifest_version(&staging_pkg);
 
     // Move from staging to final location
     eprintln!("Installing to {}/", package_dir.display());
@@ -87,9 +87,9 @@ pub async fn install_package(
     Ok(metadata)
 }
 
-/// Read version from manifest.toml in a staging directory, if present.
-fn read_version_from_staging(staging_dir: &Path) -> Option<String> {
-    let manifest_path = staging_dir.join("manifest.toml");
+/// Read the version from the manifest.toml in a directory, if present.
+fn read_manifest_version(dir: &Path) -> Option<String> {
+    let manifest_path = dir.join("manifest.toml");
     let contents = std::fs::read_to_string(manifest_path).ok()?;
     let m = manifest::parse_manifest(&contents).ok()?;
     Some(m.package.version)
@@ -190,11 +190,20 @@ pub fn install_local_package(
 }
 
 /// Read install metadata from an installed package.
+///
+/// An editable install links to a working copy whose manifest.toml can
+/// change after install, so its version comes from that manifest rather
+/// than the one recorded at install time.
 pub fn read_install_metadata(package_dir: &Path) -> Result<InstallMetadata, MxpmError> {
     let metadata_path = package_dir.join(".mxpm.json");
     let contents = std::fs::read_to_string(&metadata_path).map_err(MxpmError::Io)?;
-    let metadata: InstallMetadata =
+    let mut metadata: InstallMetadata =
         serde_json::from_str(&contents).map_err(|e| MxpmError::Io(std::io::Error::other(e)))?;
+    if matches!(metadata.source, Source::Local { editable: true, .. })
+        && let Some(version) = read_manifest_version(package_dir)
+    {
+        metadata.version = Some(version);
+    }
     Ok(metadata)
 }
 

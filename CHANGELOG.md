@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `list`, `info`, `outdated` and `test` report an editable install's version from the `manifest.toml` it links to, not the version recorded when it was installed. Bumping a package's version in its working copy showed the old number until a reinstall
+
 ## [0.9.1] - 2026-11-27
 
 ### Fixed
